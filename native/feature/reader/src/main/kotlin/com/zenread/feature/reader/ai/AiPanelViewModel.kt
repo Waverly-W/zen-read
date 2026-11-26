@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.zenread.data.ai.ChatClient
 import com.zenread.data.ai.chat.ChatEvent
 import com.zenread.data.ai.chat.ChatException
+import com.zenread.data.ai.chat.ChatMessage
 import com.zenread.data.ai.chat.ChatRole
 import com.zenread.data.ai.chat.FinishReason
 import com.zenread.data.ai.history.Citation
@@ -181,9 +182,13 @@ class AiPanelViewModel @AssistedInject constructor(
     fun regenerate() {
         if (live.value != null) return
         val id = conversationId.value ?: return
+        live.value = PENDING
         viewModelScope.launch {
             val all = conversations.messages(id)
-            val lastUser = all.lastOrNull { it.role == ChatRole.USER } ?: return@launch
+            val lastUser = all.lastOrNull { it.role == ChatRole.USER } ?: run {
+                live.value = null
+                return@launch
+            }
             all.filter { it.id > lastUser.id }.forEach { conversations.deleteMessage(it.id) }
             val skill = lastUser.skillId?.let(ReadingSkills::byId)
             val request = skill?.let { context.getString(it.prompt) } ?: lastUser.content
@@ -202,18 +207,33 @@ class AiPanelViewModel @AssistedInject constructor(
 
     private fun start(display: String, request: String, skill: ReadingSkill?, quote: String?) {
         if (live.value != null) return
+        // Claim the slot synchronously so a double tap cannot start two answers.
+        live.value = PENDING
         this.quote.value = null
         viewModelScope.launch {
-            val id = conversationId.value ?: conversations.createConversation(bookId, display).also { conversationId.value = it }
-            val userId = conversations.addUserMessage(id, display, quote, skill?.id)
-            launchAnswer(id, userId, request, skill, quote)
+            try {
+                val id = conversationId.value ?: conversations.createConversation(bookId, display).also { conversationId.value = it }
+                val userId = conversations.addUserMessage(id, display, quote, skill?.id)
+                launchAnswer(id, userId, request, skill, quote)
+            } catch (e: Exception) {
+                if (live.value === PENDING) live.value = null
+                if (e is CancellationException) throw e
+            }
         }
     }
 
     private fun launchAnswer(conversationId: Long, userMessageId: Long, request: String, skill: ReadingSkill?, quote: String?) {
         job = viewModelScope.launch {
-            val history = conversations.messages(conversationId).filter { it.id < userMessageId }.toChatHistory()
-            val assistantId = conversations.startAssistantMessage(conversationId, emptyList())
+            val history: List<ChatMessage>
+            val assistantId: Long
+            try {
+                history = conversations.messages(conversationId).filter { it.id < userMessageId }.toChatHistory()
+                assistantId = conversations.startAssistantMessage(conversationId, emptyList())
+            } catch (e: Exception) {
+                live.value = null
+                if (e is CancellationException) throw e
+                return@launch
+            }
             live.value = LiveAnswer(assistantId, "", "")
             val text = StringBuilder()
             val reasoning = StringBuilder()
@@ -312,5 +332,8 @@ class AiPanelViewModel @AssistedInject constructor(
         const val MAX_QUOTE = 4_000
         const val OUTLINE_BUDGET = 20_000
         const val FLUSH_INTERVAL_MS = 1_500L
+
+        /** Placeholder while the request is prepared; matches no message. */
+        val PENDING = LiveAnswer(messageId = -1, text = "", reasoning = "")
     }
 }

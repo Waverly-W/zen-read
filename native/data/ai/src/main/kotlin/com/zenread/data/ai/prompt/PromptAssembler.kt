@@ -98,10 +98,6 @@ object PromptAssembler {
         add(ChatMessage.user(userTurn(request, context)))
     }
 
-    /** Numbers passages from 1 in the given order. */
-    fun numberPassages(passages: List<Triple<String, String, String>>): List<Citation> =
-        passages.mapIndexed { i, (chapter, cfi, text) -> Citation(i + 1, chapter, cfi, text) }
-
     private val CITATION = Regex("""\[(\d{1,2})](?!\()""")
 
     /** Turns `[n]` into Markdown links `[n](cite:n)` for citations that exist. */

@@ -33,8 +33,14 @@
     <string name="ai_index_queued">Waiting to index…</string>
     <string name="ai_index_extracting">Reading the book… %1$d / %2$d</string>
     <string name="ai_index_embedding">Embedding passages… %1$d / %2$d</string>
-    <string name="ai_index_ready">Book indexed · %1$d passages</string>
-    <string name="ai_index_ready_keywords">Book indexed · %1$d passages · keyword search</string>
+    <plurals name="ai_index_ready">
+        <item quantity="one">Book indexed · %1$d passage</item>
+        <item quantity="other">Book indexed · %1$d passages</item>
+    </plurals>
+    <plurals name="ai_index_ready_keywords">
+        <item quantity="one">Book indexed · %1$d passage · keyword search</item>
+        <item quantity="other">Book indexed · %1$d passages · keyword search</item>
+    </plurals>
     <string name="ai_index_paused">Indexing paused</string>
     <string name="ai_index_failed">Indexing failed: %1$s</string>
     <string name="ai_index_resume">Resume</string>

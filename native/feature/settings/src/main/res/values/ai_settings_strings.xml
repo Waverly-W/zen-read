@@ -10,14 +10,17 @@
     <string name="ai_settings_none">None</string>
     <string name="ai_settings_not_set">Not set</string>
     <string name="ai_settings_index">Book index</string>
-    <string name="ai_settings_chunk_size">Passage length: %1$d characters</string>
-    <string name="ai_settings_chunk_overlap">Passage overlap: %1$d characters</string>
+    <string name="ai_settings_chunk_size">Passage length (characters): %1$d</string>
+    <string name="ai_settings_chunk_overlap">Passage overlap (characters): %1$d</string>
     <string name="ai_settings_top_k">Passages per question: %1$d</string>
     <string name="ai_settings_use_index">Search the book index when answering questions</string>
     <string name="ai_settings_unmetered">Index only on Wi-Fi</string>
     <string name="ai_settings_index_note">Changing passage length or overlap takes effect when a book is indexed again.</string>
     <string name="ai_settings_indexed_books">Indexed books</string>
-    <string name="ai_settings_indexed_summary">%1$d passages · %2$s</string>
+    <plurals name="ai_settings_indexed_summary">
+        <item quantity="one">%1$d passage · %2$s</item>
+        <item quantity="other">%1$d passages · %2$s</item>
+    </plurals>
     <string name="ai_settings_keyword_only">keyword search</string>
     <string name="ai_settings_delete_index">Delete index</string>
     <string name="ai_settings_status_ready">ready</string>
@@ -52,16 +55,14 @@
     <string name="ai_provider_enabled">Enabled</string>
     <string name="ai_provider_remove_model">Remove %1$s</string>
     <string name="ai_provider_test_ok">Connection works.</string>
-    <string name="ai_provider_fetched">Found %1$d chat and %2$d embedding models.</string>
+    <string name="ai_provider_fetched">Models found: chat %1$d, embedding %2$d.</string>
     <string name="ai_provider_needs_model">Add a chat model first.</string>
     <string name="ai_provider_failed">Failed: %1$s</string>
     <string name="ai_provider_model_params">Parameters for %1$s</string>
-    <string name="ai_provider_temperature">Temperature</string>
     <string name="ai_provider_temperature_value">Temperature: %1$s</string>
     <string name="ai_provider_default">Provider default</string>
     <string name="ai_provider_max_tokens">Max output tokens</string>
     <string name="ai_provider_max_tokens_hint">Empty = provider default</string>
     <string name="ai_provider_done">Done</string>
     <string name="ai_provider_cancel">Cancel</string>
-    <string name="ai_provider_custom_params">custom</string>
 </resources>

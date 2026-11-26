@@ -17,7 +17,9 @@
     <string name="ai_settings_unmetered">仅在 Wi-Fi 下建立索引</string>
     <string name="ai_settings_index_note">修改段落长度或重叠后，需要重新建立索引才会生效。</string>
     <string name="ai_settings_indexed_books">已建立索引的书</string>
-    <string name="ai_settings_indexed_summary">%1$d 个段落 · %2$s</string>
+    <plurals name="ai_settings_indexed_summary">
+        <item quantity="other">%1$d 个段落 · %2$s</item>
+    </plurals>
     <string name="ai_settings_keyword_only">关键词检索</string>
     <string name="ai_settings_delete_index">删除索引</string>
     <string name="ai_settings_status_ready">已完成</string>
@@ -56,12 +58,10 @@
     <string name="ai_provider_needs_model">请先添加一个对话模型。</string>
     <string name="ai_provider_failed">失败：%1$s</string>
     <string name="ai_provider_model_params">%1$s 的参数</string>
-    <string name="ai_provider_temperature">温度</string>
     <string name="ai_provider_temperature_value">温度：%1$s</string>
     <string name="ai_provider_default">使用服务商默认值</string>
     <string name="ai_provider_max_tokens">最大输出 Token 数</string>
     <string name="ai_provider_max_tokens_hint">留空则使用服务商默认值</string>
     <string name="ai_provider_done">完成</string>
     <string name="ai_provider_cancel">取消</string>
-    <string name="ai_provider_custom_params">自定义</string>
 </resources>

@@ -33,8 +33,12 @@
     <string name="ai_index_queued">等待建立索引…</string>
     <string name="ai_index_extracting">正在读取全书… %1$d / %2$d</string>
     <string name="ai_index_embedding">正在向量化段落… %1$d / %2$d</string>
-    <string name="ai_index_ready">已建立索引 · %1$d 个段落</string>
-    <string name="ai_index_ready_keywords">已建立索引 · %1$d 个段落 · 关键词检索</string>
+    <plurals name="ai_index_ready">
+        <item quantity="other">已建立索引 · %1$d 个段落</item>
+    </plurals>
+    <plurals name="ai_index_ready_keywords">
+        <item quantity="other">已建立索引 · %1$d 个段落 · 关键词检索</item>
+    </plurals>
     <string name="ai_index_paused">索引已暂停</string>
     <string name="ai_index_failed">索引失败：%1$s</string>
     <string name="ai_index_resume">继续</string>

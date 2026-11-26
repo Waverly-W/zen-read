@@ -71,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -203,8 +204,9 @@ private fun IndexBar(index: BookIndexState, embeddingConfigured: Boolean, viewMo
             action = stringResource(R.string.ai_index_cancel) to viewModel::cancelIndex
         }
         index.status == IndexStatus.READY -> {
-            label = stringResource(
-                if (index.embeddingModel == null) R.string.ai_index_ready_keywords else R.string.ai_index_ready,
+            label = pluralStringResource(
+                if (index.embeddingModel == null) R.plurals.ai_index_ready_keywords else R.plurals.ai_index_ready,
+                index.chunkCount,
                 index.chunkCount,
             )
             action = stringResource(R.string.ai_index_rebuild) to { viewModel.buildIndex(rebuild = true) }

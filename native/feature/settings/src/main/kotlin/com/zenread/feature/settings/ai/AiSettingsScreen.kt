@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -326,7 +327,9 @@ private fun IndexedBookRow(book: IndexedBook, onDelete: () -> Unit) {
     val model = book.embeddingModel ?: stringResource(R.string.ai_settings_keyword_only)
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
         ListItem(
-            supportingContent = { Text(stringResource(R.string.ai_settings_indexed_summary, book.chunkCount, "$model · $status")) },
+            supportingContent = {
+                Text(pluralStringResource(R.plurals.ai_settings_indexed_summary, book.chunkCount, book.chunkCount, "$model · $status"))
+            },
             trailingContent = {
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.ai_settings_delete_index)) }
             },
