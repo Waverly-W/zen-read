@@ -31,6 +31,9 @@ interface SyncDao {
     @Query("SELECT * FROM books WHERE file_hash = :hash LIMIT 1")
     suspend fun bookByHash(hash: String): BookEntity?
 
+    @Query("SELECT * FROM books WHERE id = :id")
+    suspend fun bookById(id: Long): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertBook(book: BookEntity): Long
 

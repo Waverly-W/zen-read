@@ -34,6 +34,8 @@ import com.zenread.feature.settings.PlaceholderSettingsScreen
 import com.zenread.feature.settings.SettingsCategoryKey
 import com.zenread.feature.settings.SettingsKey
 import com.zenread.feature.settings.SettingsScreen
+import com.zenread.feature.settings.SettingsCategory
+import com.zenread.feature.settings.sync.SyncSettingsScreen
 
 private enum class TopLevelDestination(
     val key: NavKey,
@@ -101,6 +103,7 @@ fun ZenReadApp() {
                     val back = { backStack.removeLastOrNull(); Unit }
                     // Each phase adds its category here, e.g. SettingsCategory.TTS -> TtsSettingsScreen(onBack = back).
                     when (key.category) {
+                        SettingsCategory.SYNC -> SyncSettingsScreen(onBack = back)
                         else -> PlaceholderSettingsScreen(key.category, onBack = back)
                     }
                 }

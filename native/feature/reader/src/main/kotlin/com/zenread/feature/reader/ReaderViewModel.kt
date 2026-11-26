@@ -10,6 +10,7 @@ import com.zenread.core.model.HighlightColor
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.TocItem
 import com.zenread.data.library.AnnotationRepository
+import com.zenread.data.library.BookFileState
 import com.zenread.data.library.BookRepository
 import com.zenread.reader.engine.BookFileRegistry
 import com.zenread.reader.engine.Cfi
@@ -54,7 +55,7 @@ data class ReaderUiState(
 
 data class TappedAnnotation(val annotation: Annotation, val rect: PageRect)
 
-enum class ReaderError { BOOK_MISSING, WEBVIEW_UNSUPPORTED, LOAD_FAILED, RENDERER_GONE }
+enum class ReaderError { BOOK_MISSING, WEBVIEW_UNSUPPORTED, LOAD_FAILED, RENDERER_GONE, DOWNLOAD_FAILED }
 
 /** Instructions for the page, applied by the screen through its `ReaderController`. */
 sealed interface PageCommand {
@@ -98,10 +99,24 @@ class ReaderViewModel @AssistedInject constructor(
     private var registration: BookFileRegistry.Registration? = null
 
     init {
+        open()
+    }
+
+    /** Retries opening after a failed cloud download. */
+    fun retryOpen() {
+        _state.update { it.copy(error = null) }
+        open()
+    }
+
+    private fun open() {
         viewModelScope.launch {
             val book = books.getBook(bookId)
+            // A book synced from another device is downloaded on first open.
+            val fileState = book?.let { books.ensureFile(it) }
             val file = book?.let { File(it.filePath) }
             when {
+                fileState == BookFileState.DOWNLOAD_FAILED ->
+                    _state.update { it.copy(error = ReaderError.DOWNLOAD_FAILED) }
                 book == null || file?.exists() != true ->
                     _state.update { it.copy(error = ReaderError.BOOK_MISSING) }
                 !webViewFactory.isSupported ->

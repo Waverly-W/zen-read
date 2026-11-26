@@ -141,7 +141,11 @@ fun ReaderScreen(
         state.error?.let { error ->
             ReaderErrorState(
                 error = error,
-                onRetry = if (error == ReaderError.RENDERER_GONE) viewModel::onReload else null,
+                onRetry = when (error) {
+                    ReaderError.RENDERER_GONE -> viewModel::onReload
+                    ReaderError.DOWNLOAD_FAILED -> viewModel::retryOpen
+                    else -> null
+                },
                 onBack = onBack,
                 modifier = Modifier.align(Alignment.Center),
             )

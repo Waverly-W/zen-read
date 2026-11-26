@@ -28,6 +28,7 @@ internal fun ReaderErrorState(
         ReaderError.WEBVIEW_UNSUPPORTED -> R.string.reader_error_webview
         ReaderError.LOAD_FAILED -> R.string.reader_error_load
         ReaderError.RENDERER_GONE -> R.string.reader_error_crash
+        ReaderError.DOWNLOAD_FAILED -> R.string.reader_error_download
     }
     Surface(
         modifier = modifier.padding(32.dp),

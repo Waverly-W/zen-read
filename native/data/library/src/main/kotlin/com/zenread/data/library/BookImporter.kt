@@ -59,7 +59,19 @@ class BookImporter @Inject constructor(
         return try {
             val (tmp, hash) = withContext(io) { copyAndHash(uri) }
             staged = tmp
-            if (dao.findByHash(hash) != null) return ImportOutcome.Duplicate(name)
+            val existing = dao.findByHash(hash)
+            if (existing != null) {
+                // A book synced from another device whose file was never downloaded:
+                // importing the same file supplies it.
+                val missing = File(existing.filePath)
+                if (missing.exists()) return ImportOutcome.Duplicate(name)
+                withContext(io) {
+                    missing.parentFile?.mkdirs()
+                    if (!tmp.renameTo(missing)) tmp.copyTo(missing, overwrite = true)
+                }
+                staged = null
+                return ImportOutcome.Imported(name, existing.id)
+            }
 
             val target = File(booksDir, "$hash.${format.primaryExtension}")
             withContext(io) { if (!tmp.renameTo(target)) tmp.copyTo(target, overwrite = true) }
