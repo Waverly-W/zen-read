@@ -149,7 +149,7 @@ ZenRead/v1/
 
 ### 5.5 调度
 
-`SyncManager` 用进程内互斥锁保证同一时间只有一次同步。WorkManager（均要求联网）：每小时一次、本地修改后 90 秒去抖（每次修改重置计时）、应用启动后 5 秒；设置页的「立即同步」直接在应用作用域运行。坚果云的自动同步间隔至少 10 分钟，并在本机限制每 30 分钟 480 次请求；任何服务器返回 429/503 后按 Retry-After 或指数退避暂停。`SyncInitializer`（androidx.startup）在第一个 Activity 创建时启动调度，不改 `Application`。
+`SyncManager` 用进程内互斥锁保证同一时间只有一次同步。WorkManager（均要求联网）：每小时一次、本地修改后 90 秒去抖（每次修改重置计时）、应用启动后 5 秒、同步进行中数据库有变化时之后再补一次；设置页的「立即同步」直接在应用作用域运行。坚果云的自动同步间隔至少 10 分钟，并在本机限制每 30 分钟 480 次请求；任何服务器返回 429/503 后按 Retry-After 或指数退避暂停。`SyncInitializer`（androidx.startup）在第一个 Activity 创建时启动调度，不改 `Application`。
 
 ## 6. AI 与 RAG
 

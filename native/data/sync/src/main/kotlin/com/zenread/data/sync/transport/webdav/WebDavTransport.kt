@@ -112,15 +112,17 @@ class WebDavTransport(
                 }
                 val link = WebDavXml.nextLink(it.header("Link"))
                 if (link == null) {
-                    // A full Jianguoyun page without a continuation link may be truncated.
+                    // A full Jianguoyun page without a continuation link may be truncated. The
+                    // engine treats book and cover listings as hints and the log stays far
+                    // below a page thanks to compaction, so continue with what we have.
                     if (jianguoyun && resources.size >= JIANGUOYUN_PAGE) {
-                        throw SyncException.Protocol("Listing may be truncated")
+                        SyncLog.w("WebDAV listing may be truncated at ${resources.size} entries")
                     }
                     null
                 } else {
                     val resolved = target.resolve(link)
                     if (resolved == null || resolved.host != base.host || resolved.port != base.port ||
-                        resolved.scheme != base.scheme || resolved.encodedPath != base.encodedPath
+                        resolved.scheme != base.scheme || resolved.encodedPath.trimEnd('/') != base.encodedPath.trimEnd('/')
                     ) {
                         throw SyncException.Protocol("Invalid listing page link")
                     }

@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
  * - periodically (hourly),
  * - [DEBOUNCE_MILLIS] after the last local change to books, progress or annotations
  *   (each change restarts the timer, so reading does not sync on every page turn),
- * - shortly after the app starts.
+ * - shortly after the app starts,
+ * - once more after a sync during which the database changed.
  *
  * Overlap is prevented by [SyncManager]'s lock, not by WorkManager.
  */
@@ -55,12 +56,16 @@ class SyncScheduler @Inject constructor(
         }
         scope.launch {
             database.invalidationTracker.createFlow(*ZenReadDatabase.SYNCED_TABLES, emitInitialState = false).collect {
-                // Writes made by the sync itself are not local changes.
-                if (manager.isRunning || System.currentTimeMillis() - manager.lastFinishedAt < OWN_WRITES_GRACE_MILLIS) {
-                    return@collect
-                }
                 val current = settings.current()
-                if (current.backend != SyncBackend.NONE && current.autoSync) scheduleAfterChange()
+                if (current.backend == SyncBackend.NONE || !current.autoSync) return@collect
+                when {
+                    // A change while syncing may be the user's or the sync's own; check again
+                    // later without cancelling the running sync (REPLACE would cancel it).
+                    manager.isRunning -> scheduleFollowUp()
+                    // Notifications for the sync's own last writes arrive just after it ends.
+                    System.currentTimeMillis() - manager.lastFinishedAt < OWN_WRITES_GRACE_MILLIS -> Unit
+                    else -> scheduleAfterChange()
+                }
             }
         }
     }
@@ -73,6 +78,14 @@ class SyncScheduler @Inject constructor(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
             .build()
         workManager.enqueueUniqueWork(WORK_CHANGES, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    private fun scheduleFollowUp() {
+        val request = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setInitialDelay(DEBOUNCE_MILLIS, TimeUnit.MILLISECONDS)
+            .setConstraints(networkConstraint())
+            .build()
+        workManager.enqueueUniqueWork(WORK_FOLLOW_UP, ExistingWorkPolicy.KEEP, request)
     }
 
     private fun enableAutoSync() {
@@ -92,6 +105,7 @@ class SyncScheduler @Inject constructor(
         workManager.cancelUniqueWork(WORK_PERIODIC)
         workManager.cancelUniqueWork(WORK_CHANGES)
         workManager.cancelUniqueWork(WORK_STARTUP)
+        workManager.cancelUniqueWork(WORK_FOLLOW_UP)
     }
 
     private fun networkConstraint() = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -103,5 +117,6 @@ class SyncScheduler @Inject constructor(
         private const val WORK_PERIODIC = "zenread-sync-periodic"
         private const val WORK_CHANGES = "zenread-sync-changes"
         private const val WORK_STARTUP = "zenread-sync-startup"
+        private const val WORK_FOLLOW_UP = "zenread-sync-follow-up"
     }
 }
