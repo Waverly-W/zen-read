@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fonts_title">Font</string>
+    <string name="fonts_import">Import</string>
+    <string name="fonts_target_body">Body text</string>
+    <string name="fonts_target_latin">Latin &amp; digits</string>
+    <string name="fonts_latin_hint">Applies to Latin letters, digits and Western punctuation. Chinese and Japanese text keeps the body font.</string>
+    <string name="fonts_weight">Weight</string>
+    <string name="fonts_follow_book">Book’s own fonts</string>
+    <string name="fonts_follow_book_detail">Use the fonts that come with the book</string>
+    <string name="fonts_same_as_body">Same as body text</string>
+    <string name="fonts_section_system">System</string>
+    <string name="fonts_section_bundled">Built in</string>
+    <string name="fonts_section_download">Download</string>
+    <string name="fonts_section_imported">Imported</string>
+    <string name="fonts_serif">Serif</string>
+    <string name="fonts_sans_serif">Sans serif</string>
+    <string name="fonts_monospace">Monospace</string>
+    <string name="fonts_imported_empty">Import TTF, OTF, WOFF or WOFF2 font files from your device.</string>
+    <string name="fonts_no_preview">%1$s · preview only in the book</string>
+    <string name="fonts_download">Download</string>
+    <string name="fonts_cancel_download">Cancel download</string>
+    <string name="fonts_downloading">Downloading… %1$d%%</string>
+    <string name="fonts_download_failed">Download failed. Tap to try again.</string>
+    <string name="fonts_download_detail">%1$s · %2$s · %3$s</string>
+    <string name="fonts_desc_source_han_serif">Song-style serif for Simplified Chinese, by Adobe</string>
+    <string name="fonts_desc_lxgw_wenkai">Open-source Kai-style Chinese font based on Klee One</string>
+    <string name="fonts_desc_literata">Latin typeface designed for long reading</string>
+    <string name="fonts_desc_generic">Free font</string>
+    <string name="fonts_delete">Delete</string>
+    <string name="fonts_cancel">Cancel</string>
+    <string name="fonts_delete_title">Delete font?</string>
+    <string name="fonts_delete_body">“%1$s” will be removed from this device. If it is in use, the reader goes back to the default font.</string>
+    <string name="fonts_missing">Missing font</string>
+    <plurals name="fonts_imported">
+        <item quantity="one">Imported %d font</item>
+        <item quantity="other">Imported %d fonts</item>
+    </plurals>
+    <plurals name="fonts_import_failed">
+        <item quantity="one">%d file is not a usable font</item>
+        <item quantity="other">%d files are not usable fonts</item>
+    </plurals>
+</resources>

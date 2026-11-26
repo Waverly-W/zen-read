@@ -209,3 +209,11 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 - **会话**：`TtsPlaybackController`（单例，全部在主线程）负责播放循环、音频焦点（暂时失去焦点后自动恢复，被其他应用接管时不恢复）、拔耳机暂停、唤醒锁和定时关闭；`TtsPlaybackService`（Media3 `MediaSessionService`）把它包装成 `SimpleBasePlayer`，通知栏、锁屏和耳机的上一首/下一首映射为上一句/下一句。偏好存在独立的 DataStore 文件 `tts_settings`，OpenAI 密钥存在 `SecretStore` 的 `tts.openai.apiKey`。
 - **息屏后继续朗读**：WebView 是唯一的文本来源，所以靠前台媒体服务保住进程；应用从不调用 WebView 的 `onPause` / `pauseTimers`，JS 照常执行。进入后台时调用 `ttsSetBackground(true)`，页面不再绘制高亮和翻页，只推进游标；foliate-js 跨章时用 `createDocument` 离屏解析下一章（EPUB、MOBI、FB2、PDF 都支持），不依赖布局和 `requestAnimationFrame`。朗读期间把渲染进程优先级设为 `IMPORTANT`，不可见时也不降低。进度由 `onTtsProgress` 保存，因为后台页面不会触发 `onRelocated`。
 - **已知限制**：退出阅读页会停止朗读（文本来源随 WebView 一起销毁）；旋转屏幕、切换深色模式等配置变更时会话先暂停，新页面就绪后从当前句继续（10 秒内没有重新接上就停止）；从最近任务中划掉应用会停止朗读。系统引擎不会按书籍语言自动选音色，未选音色时使用系统默认音色。
+
+## 11. 阅读字体
+
+- 模块：`data:fonts`（字体目录、导入校验、按需下载、删除、写入阅读设置）；`feature:fonts`（字体选择器界面，嵌入阅读页排版面板的「字体」行和「设置 → 阅读」页，没有自己的导航入口）。`feature:fonts` 是供这两个界面复用的组件库，是「feature 之间互不依赖」的唯一例外。
+- 选择以 `ReaderFont` 的 id 存进 `ReaderSettings`：`book`（跟随书籍，默认）、`system:serif|sans-serif|monospace`、`bundled:<文件名>`、`file:<文件名>`。`ReaderFontStyle` 把它换算成 foliate-js 的 `fontName` / `fontPath`；西文字体对应 `englishFontName` / `englishFontPath`，借助 `unicode-range` 只覆盖拉丁字符。
+- 导入和下载的文件放在 `filesDir/fonts/`，文件名是内容 SHA-256 的前 16 位加扩展名，用户的原文件名不会进入文件系统；显示名称记在 `filesDir/fonts-index.json`。页面通过 `/fonts/<文件名>` 读取已安装字体，通过 `/fonts/bundled/<文件名>` 读取 APK `assets/fonts/` 中的内置字体；只接受单段、合法的字体文件名。
+- 只内置 65 KB 的 Atkinson Hyperlegible Next。中文字体体积大（11–14 MB），改为按需下载，链接固定到具体提交并校验 SHA-256。上游 Flutter 自带的思源宋体是裁剪过的子集，却仍沿用保留字体名，不符合 OFL，因此不带。
+- `reader-fonts.js` 有一处本地修改，见 `reader/engine/src/main/assets/reader/UPSTREAM.md`。

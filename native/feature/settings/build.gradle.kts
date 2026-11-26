@@ -13,4 +13,6 @@ dependencies {
     implementation(project(":data:ai"))
     implementation(libs.androidx.activity.compose)
     implementation(project(":data:sync"))
+    implementation(project(":core:datastore"))
+    implementation(project(":feature:fonts"))
 }

@@ -83,4 +83,13 @@
     <string name="sync_error_config">The settings are incomplete or invalid.</string>
     <string name="sync_error_clock">The clock on this device is wrong. Correct the date and time.</string>
     <string name="sync_error_unknown">Something went wrong.</string>
+    <!-- Reading page (settings.reading) -->
+    <string name="settings_reading_layout">Layout</string>
+    <string name="settings_reading_font_size">Font size</string>
+    <string name="settings_reading_line_height">Line spacing</string>
+    <string name="settings_reading_margins">Side margins</string>
+    <string name="settings_reading_page_turn">Page turning</string>
+    <string name="settings_reading_turn_slide">Slide</string>
+    <string name="settings_reading_turn_scroll">Scroll</string>
+    <string name="settings_reading_turn_none">Instant</string>
 </resources>

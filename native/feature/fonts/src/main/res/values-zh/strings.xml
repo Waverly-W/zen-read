@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fonts_title">字体</string>
+    <string name="fonts_import">导入</string>
+    <string name="fonts_target_body">正文</string>
+    <string name="fonts_target_latin">西文与数字</string>
+    <string name="fonts_latin_hint">只作用于西文字母、数字和西文标点，中文和日文仍使用正文字体。</string>
+    <string name="fonts_weight">字重</string>
+    <string name="fonts_follow_book">跟随书籍</string>
+    <string name="fonts_follow_book_detail">使用书中自带的字体</string>
+    <string name="fonts_same_as_body">与正文相同</string>
+    <string name="fonts_section_system">系统字体</string>
+    <string name="fonts_section_bundled">内置字体</string>
+    <string name="fonts_section_download">下载字体</string>
+    <string name="fonts_section_imported">导入的字体</string>
+    <string name="fonts_serif">衬线（宋体风格）</string>
+    <string name="fonts_sans_serif">无衬线（黑体风格）</string>
+    <string name="fonts_monospace">等宽</string>
+    <string name="fonts_imported_empty">从设备导入 TTF、OTF、WOFF 或 WOFF2 字体文件。</string>
+    <string name="fonts_no_preview">%1$s · 仅在书中显示效果</string>
+    <string name="fonts_download">下载</string>
+    <string name="fonts_cancel_download">取消下载</string>
+    <string name="fonts_downloading">正在下载… %1$d%%</string>
+    <string name="fonts_download_failed">下载失败，轻点重试。</string>
+    <string name="fonts_download_detail">%1$s · %2$s · %3$s</string>
+    <string name="fonts_desc_source_han_serif">Adobe 出品的简体中文宋体</string>
+    <string name="fonts_desc_lxgw_wenkai">基于 Klee One 的开源中文楷体</string>
+    <string name="fonts_desc_literata">为长时间阅读设计的西文字体</string>
+    <string name="fonts_desc_generic">免费字体</string>
+    <string name="fonts_delete">删除</string>
+    <string name="fonts_cancel">取消</string>
+    <string name="fonts_delete_title">删除字体？</string>
+    <string name="fonts_delete_body">将从本机删除“%1$s”。如果正在使用它，阅读页会改回默认字体。</string>
+    <string name="fonts_missing">字体已缺失</string>
+    <plurals name="fonts_imported">
+        <item quantity="other">已导入 %d 个字体</item>
+    </plurals>
+    <plurals name="fonts_import_failed">
+        <item quantity="other">%d 个文件不是可用的字体</item>
+    </plurals>
+</resources>

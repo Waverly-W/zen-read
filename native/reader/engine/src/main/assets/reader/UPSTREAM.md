@@ -17,3 +17,7 @@ note the change at the top of that file and list it below.
   (12) at a time instead of strictly one after another, so the host (`data:translate`
   `TranslationBatcher`) can send them to the translation service in one request. Prefetch
   requests stay sequential.
+- `src/reader-fonts.js` — `readerFontCSS()`: `fontName` `serif` / `sans-serif` / `monospace` is
+  emitted as an unquoted CSS generic family (no `@font-face`), and the same names as
+  `englishFontName` use `local()` system faces like upstream's `system`. Upstream quoted every
+  name, so `"serif"` was looked up as a font literally named serif.

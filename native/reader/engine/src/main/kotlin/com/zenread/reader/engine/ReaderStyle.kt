@@ -32,12 +32,16 @@ object ReaderStyle {
         put("topMargin", 24 + topInset)
         put("bottomMargin", 24 + bottomInset)
 
+        // Fonts: see ReaderFontStyle for the foliate-js name/path contract.
+        val body = ReaderFontStyle.body(settings.font)
+        val latin = ReaderFontStyle.latin(settings.latinFont)
+        put("fontName", body.name)
+        put("fontPath", body.path)
+        put("englishFontName", latin?.name)
+        put("englishFontPath", latin?.path)
+        put("fontWeight", settings.fontWeight)
+
         // Fixed for now.
-        put("fontName", "book")
-        put("fontPath", "book")
-        put("englishFontName", JsonNull)
-        put("englishFontPath", JsonNull)
-        put("fontWeight", 400)
         put("simulateBold", false)
         put("letterSpacing", 0)
         put("paragraphSpacing", 1.0)

@@ -83,4 +83,13 @@
     <string name="sync_error_config">设置不完整或无效。</string>
     <string name="sync_error_clock">本机时间不准确，请校正日期和时间。</string>
     <string name="sync_error_unknown">出现未知错误。</string>
+    <!-- Reading page (settings.reading) -->
+    <string name="settings_reading_layout">排版</string>
+    <string name="settings_reading_font_size">字号</string>
+    <string name="settings_reading_line_height">行距</string>
+    <string name="settings_reading_margins">页边距</string>
+    <string name="settings_reading_page_turn">翻页方式</string>
+    <string name="settings_reading_turn_slide">滑动</string>
+    <string name="settings_reading_turn_scroll">滚动</string>
+    <string name="settings_reading_turn_none">无动画</string>
 </resources>
