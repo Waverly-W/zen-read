@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_settings_privacy">翻译时，所选文字会发送给你选择的翻译服务。只有在阅读页点“翻译”或打开对照翻译时才会发送。</string>
+    <string name="translate_settings_service">默认服务</string>
+    <string name="translate_settings_free">免费，无需密钥</string>
+    <string name="translate_settings_key_set">已保存 API 密钥</string>
+    <string name="translate_settings_key_missing">需要 API 密钥（见下方）</string>
+    <string name="translate_settings_language">语言</string>
+    <string name="translate_settings_target">翻译成</string>
+    <string name="translate_settings_target_system">系统语言（%1$s）</string>
+    <string name="translate_settings_page">对照翻译</string>
+    <string name="translate_settings_page_body">在阅读页顶部点翻译按钮即可开启对照翻译，每段译文显示在原文下方。</string>
+    <string name="translate_settings_page_mode">显示</string>
+    <string name="translate_settings_mode_bilingual">原文 + 译文</string>
+    <string name="translate_settings_mode_translation">仅译文</string>
+    <string name="translate_settings_page_color">译文颜色</string>
+    <string name="translate_settings_color_text">正文色</string>
+    <string name="translate_settings_color_muted">浅色</string>
+    <string name="translate_settings_color_accent">强调色</string>
+    <string name="translate_settings_page_italic">译文用斜体</string>
+    <string name="translate_settings_prefetch">提前翻译后续页面</string>
+    <string name="translate_settings_prefetch_off">关闭</string>
+    <string name="translate_settings_prefetch_body">提前翻译能让翻页更流畅，但会发送更多文字、消耗更多额度。</string>
+    <string name="translate_settings_keys">服务</string>
+    <string name="translate_settings_unofficial">免费公共接口，可能较慢、被限流，或在部分地区无法使用。</string>
+    <string name="translate_settings_test">测试</string>
+    <string name="translate_settings_save">保存</string>
+    <string name="translate_settings_show_key">显示密钥</string>
+    <string name="translate_settings_hide_key">隐藏密钥</string>
+    <string name="translate_settings_cancel">取消</string>
+    <string name="translate_settings_cache">存储</string>
+    <string name="translate_settings_cache_title">翻译缓存</string>
+    <string name="translate_settings_cache_clear">清除</string>
+    <plurals name="translate_settings_cache_count">
+        <item quantity="other">本机已保存 %1$d 段译文</item>
+    </plurals>
+</resources>

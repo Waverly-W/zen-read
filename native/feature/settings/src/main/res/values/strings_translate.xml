@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_settings_privacy">Translation sends the text you translate to the service you choose. Nothing is sent until you tap Translate in the reader or turn on page translation.</string>
+    <string name="translate_settings_service">Default service</string>
+    <string name="translate_settings_free">Free, no key needed</string>
+    <string name="translate_settings_key_set">API key saved</string>
+    <string name="translate_settings_key_missing">Needs an API key (see below)</string>
+    <string name="translate_settings_language">Language</string>
+    <string name="translate_settings_target">Translate into</string>
+    <string name="translate_settings_target_system">System language (%1$s)</string>
+    <string name="translate_settings_page">Bilingual pages</string>
+    <string name="translate_settings_page_body">Turn on page translation with the translate button at the top of the reader. Each paragraph’s translation appears below it.</string>
+    <string name="translate_settings_page_mode">Show</string>
+    <string name="translate_settings_mode_bilingual">Original + translation</string>
+    <string name="translate_settings_mode_translation">Translation only</string>
+    <string name="translate_settings_page_color">Translation color</string>
+    <string name="translate_settings_color_text">Text</string>
+    <string name="translate_settings_color_muted">Muted</string>
+    <string name="translate_settings_color_accent">Accent</string>
+    <string name="translate_settings_page_italic">Italic translations</string>
+    <string name="translate_settings_prefetch">Translate pages ahead</string>
+    <string name="translate_settings_prefetch_off">Off</string>
+    <string name="translate_settings_prefetch_body">Translating ahead makes page turns smoother but sends more text and uses more of your quota.</string>
+    <string name="translate_settings_keys">Services</string>
+    <string name="translate_settings_unofficial">Free public endpoint. It may be slow, rate-limited or unavailable in some regions.</string>
+    <string name="translate_settings_test">Test</string>
+    <string name="translate_settings_save">Save</string>
+    <string name="translate_settings_show_key">Show key</string>
+    <string name="translate_settings_hide_key">Hide key</string>
+    <string name="translate_settings_cancel">Cancel</string>
+    <string name="translate_settings_cache">Storage</string>
+    <string name="translate_settings_cache_title">Translation cache</string>
+    <string name="translate_settings_cache_clear">Clear</string>
+    <plurals name="translate_settings_cache_count">
+        <item quantity="one">%1$d paragraph saved on this device</item>
+        <item quantity="other">%1$d paragraphs saved on this device</item>
+    </plurals>
+</resources>
