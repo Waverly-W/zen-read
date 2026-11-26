@@ -7,8 +7,8 @@ import javax.inject.Singleton
 /**
  * Every [Translator] contributed through Hilt multibinding, ordered for pickers.
  *
- * TODO(ai-translate): AI (LLM) translation is not built here. The AI phase adds it by
- *  binding an `AiTranslator : Translator` into the set from `data:ai`:
+ * AI (LLM) translation is not built here: `data:ai` contributes `AiTranslator` (id `ai`) by
+ *  binding it into the set:
  *  ```
  *  @Binds @IntoSet abstract fun aiTranslator(impl: AiTranslator): Translator
  *  ```

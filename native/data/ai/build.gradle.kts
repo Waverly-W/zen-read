@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:datastore"))
     implementation(project(":reader:engine"))
+    implementation(project(":data:translate"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.room.runtime)

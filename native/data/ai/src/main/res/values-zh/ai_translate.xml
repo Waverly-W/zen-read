@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_translator_label">AI（默认对话模型）</string>
+</resources>
