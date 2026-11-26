@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reader_tts_listen">Read aloud</string>
+    <string name="reader_tts_read_from_here">Read aloud from here</string>
     <string name="reader_tts_play">Play</string>
     <string name="reader_tts_pause">Pause</string>
     <string name="reader_tts_previous">Previous sentence</string>

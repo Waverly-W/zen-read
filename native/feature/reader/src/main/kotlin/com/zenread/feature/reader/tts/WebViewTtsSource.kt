@@ -4,6 +4,10 @@ import com.zenread.data.tts.SpeechProgress
 import com.zenread.data.tts.TtsSentence
 import com.zenread.data.tts.TtsTextSource
 import com.zenread.reader.engine.ReaderController
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 /**
  * Feeds read-aloud from foliate-js's speech cursor in the reader's WebView (see `book.js`
@@ -23,8 +27,30 @@ internal class WebViewTtsSource(
         disposed = true
     }
 
-    override suspend fun start(fromCfi: String?, paragraphMode: Boolean): TtsSentence? =
-        if (disposed) null else page.ttsStart(fromCfi, paragraphMode)?.toSentence()
+    override suspend fun start(fromCfi: String?, paragraphMode: Boolean): TtsSentence? {
+        if (disposed || !awaitBook()) return null
+        return page.ttsStart(fromCfi, paragraphMode)?.toSentence()
+    }
+
+    /**
+     * Waits until foliate-js has opened the book. After a configuration change the reader's
+     * "ready" state survives in the view model while the new page is still loading.
+     */
+    private suspend fun awaitBook(): Boolean {
+        repeat(READY_ATTEMPTS) {
+            if (disposed) return false
+            val ready = try {
+                page.evaluateAsync(READY_PROBE, timeoutMs = 1_500)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            if ((ready as? JsonPrimitive)?.booleanOrNull == true) return true
+            delay(300)
+        }
+        return false
+    }
 
     override suspend fun next(): TtsSentence? = if (disposed) null else page.ttsNext()?.toSentence()
 
@@ -46,4 +72,10 @@ internal class WebViewTtsSource(
     }
 
     private fun ReaderController.TtsDetail.toSentence() = TtsSentence(text = text, cfi = cfi, section = section)
+
+    private companion object {
+        const val READY_ATTEMPTS = 12
+        const val READY_PROBE =
+            "return typeof reader !== 'undefined' && !!reader?.view?.book && typeof window.ttsHere === 'function'"
+    }
 }

@@ -188,6 +188,10 @@ fun ReaderScreen(
                 onNote = viewModel::noteOnSelection,
                 onCopy = { copy(selection.text); viewModel.clearSelection() },
                 onDelete = viewModel::deleteMarksInSelection,
+                onReadAloud = {
+                    tts.startFrom(selection.cfi)
+                    viewModel.clearSelection()
+                },
             )
         }
         state.tapped?.let { (annotation, rect) ->

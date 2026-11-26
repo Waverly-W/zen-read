@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.FormatUnderlined
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,8 @@ internal fun SelectionMenu(
     onNote: () -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
+    /** Read aloud from the selection (phase 3); hidden when null. */
+    onReadAloud: (() -> Unit)? = null,
 ) {
     AnchoredMenu(rect) {
         MenuCard {
@@ -62,6 +65,11 @@ internal fun SelectionMenu(
                 IconButton(onClick = onCopy) { Icon(Icons.Rounded.ContentCopy, stringResource(R.string.reader_copy)) }
                 if (overlapsMarks) {
                     IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.reader_delete_mark)) }
+                }
+                if (onReadAloud != null) {
+                    IconButton(onClick = onReadAloud) {
+                        Icon(Icons.Rounded.Headphones, stringResource(R.string.reader_tts_read_from_here))
+                    }
                 }
             }
         }

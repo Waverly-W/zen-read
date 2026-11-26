@@ -75,7 +75,8 @@ class TtsSettingsViewModel @Inject constructor(
         _voices.value = VoiceListState(engine, loading = true)
         voiceJob = viewModelScope.launch {
             val result = try {
-                engines.voices(engine)
+                // Ids key the picker's list; never let a duplicate crash it.
+                engines.voices(engine).distinctBy { it.id }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

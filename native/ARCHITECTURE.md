@@ -141,3 +141,11 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ## 9. 许可证
 
 本项目复用了 foliate-js（MIT），并参照 ReadAny（GPL-3.0-or-later）的代码移植逻辑，因此整体仍以 **GPL-3.0-or-later** 发布。保留根目录下的 `LICENSE`、`LICENSES/`、`NOTICE` 和 `UPSTREAM.md`。移植过来的文件在文件头注明来源路径。
+
+## 10. 听书（阶段 3）
+
+- **模块**：`data:tts`。引擎接口 `TtsEngine`（`speak` 挂起到读完，取消即静音）有三个实现：系统 `TextToSpeech`（`SystemTtsEngine`）；Edge 与 OpenAI 兼容服务都实现 `SpeechSynthesizer`，由 `OnlineTtsEngine` 统一做预取（当前句起最多 3 句）和播放（内部 ExoPlayer 播 MP3）。Edge 的 `Sec-MS-GEC` 令牌移植自上游 `edge_tts_token.dart`（edge-tts 7.3.0，LGPL-3.0-only），用上游的测试向量校验。
+- **文本来源**：沿用上游做法，句子由 foliate-js 的朗读游标提供（`ttsHere` / `ttsFromCfi` / `ttsNext` / `ttsPrev` / `ttsCollectDetails`），游标只由播放循环推进，预取只“看”不动。`evaluateJavascript` 不能等待 Promise，所以 `ReaderController.evaluateAsync` 让脚本把结果通过宿主专用的 `zenAsyncResult` 回调送回，由 `ReaderBridge` 在监听器里直接完成对应的 Deferred。在线引擎开启段落模式（`ttsSetParagraphMode(true, 240)`），系统引擎按句。
+- **会话**：`TtsPlaybackController`（单例，全部在主线程）负责播放循环、音频焦点（暂时失去焦点后自动恢复，被其他应用接管时不恢复）、拔耳机暂停、唤醒锁和定时关闭；`TtsPlaybackService`（Media3 `MediaSessionService`）把它包装成 `SimpleBasePlayer`，通知栏、锁屏和耳机的上一首/下一首映射为上一句/下一句。偏好存在独立的 DataStore 文件 `tts_settings`，OpenAI 密钥存在 `SecretStore` 的 `tts.openai.apiKey`。
+- **息屏后继续朗读**：WebView 是唯一的文本来源，所以靠前台媒体服务保住进程；应用从不调用 WebView 的 `onPause` / `pauseTimers`，JS 照常执行。进入后台时调用 `ttsSetBackground(true)`，页面不再绘制高亮和翻页，只推进游标；foliate-js 跨章时用 `createDocument` 离屏解析下一章（EPUB、MOBI、FB2、PDF 都支持），不依赖布局和 `requestAnimationFrame`。朗读期间把渲染进程优先级设为 `IMPORTANT`，不可见时也不降低。进度由 `onTtsProgress` 保存，因为后台页面不会触发 `onRelocated`。
+- **已知限制**：退出阅读页会停止朗读（文本来源随 WebView 一起销毁）；旋转屏幕、切换深色模式等配置变更时会话先暂停，新页面就绪后从当前句继续（10 秒内没有重新接上就停止）；从最近任务中划掉应用会停止朗读。系统引擎不会按书籍语言自动选音色，未选音色时使用系统默认音色。

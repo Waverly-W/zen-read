@@ -2,7 +2,6 @@ package com.zenread.feature.settings.tts
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -37,6 +38,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -46,7 +48,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,7 +64,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -134,15 +136,14 @@ fun TtsSettingsScreen(onBack: () -> Unit, viewModel: TtsSettingsViewModel = hilt
             item {
                 Group(stringResource(R.string.tts_settings_voice)) {
                     ListItem(
-                        headlineContent = { Text(voiceLabel(current, voices.voices)) },
-                        supportingContent = { Text(stringResource(R.string.tts_settings_voice_change)) },
-                        leadingContent = { Icon(Icons.Rounded.RecordVoiceOver, contentDescription = null) },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        modifier = Modifier.clickable {
+                        onClick = {
                             viewModel.loadVoices(current.engine)
                             pickingVoice = true
                         },
-                    )
+                        supportingContent = { Text(stringResource(R.string.tts_settings_voice_change)) },
+                        leadingContent = { Icon(Icons.Rounded.RecordVoiceOver, contentDescription = null) },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    ) { Text(voiceLabel(current, voices.voices)) }
                     PreviewButton(
                         playing = preview == PreviewState.PLAYING,
                         failed = preview == PreviewState.FAILED,
@@ -281,17 +282,16 @@ internal fun engineLabel(engine: TtsEngineType): String = stringResource(
 private fun SystemTtsSettingsLink() {
     val context = LocalContext.current
     ListItem(
-        headlineContent = { Text(stringResource(R.string.tts_settings_system_open)) },
-        trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.clickable {
+        onClick = {
             try {
                 context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             } catch (_: ActivityNotFoundException) {
                 // Some ROMs hide the screen; nothing else to offer.
             }
         },
-    )
+        trailingContent = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null) },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) { Text(stringResource(R.string.tts_settings_system_open)) }
 }
 
 @Composable
@@ -422,26 +422,22 @@ private fun AutoSaveField(
 
 @Composable
 private fun ApiKeyField(hasKey: Boolean, onSave: (String) -> Unit, onClear: () -> Unit) {
-    var key by remember { mutableStateOf("") }
-    OutlinedTextField(
-        value = key,
-        onValueChange = { key = it },
+    val key = rememberTextFieldState()
+    OutlinedSecureTextField(
+        state = key,
         label = { Text(stringResource(R.string.tts_settings_openai_key)) },
         placeholder = { if (hasKey) Text(stringResource(R.string.tts_settings_openai_key_saved)) },
         leadingIcon = { Icon(Icons.Rounded.Key, contentDescription = null) },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         supportingText = { Text(stringResource(R.string.tts_settings_openai_key_hint)) },
         modifier = Modifier.fillMaxWidth(),
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
             onClick = {
-                onSave(key)
-                key = ""
+                onSave(key.text.toString())
+                key.clearText()
             },
-            enabled = key.isNotBlank(),
+            enabled = key.text.isNotBlank(),
         ) { Text(stringResource(R.string.tts_settings_openai_key_save)) }
         if (hasKey) {
             TextButton(onClick = onClear) { Text(stringResource(R.string.tts_settings_openai_key_remove)) }
@@ -459,7 +455,10 @@ private fun VoicePickerSheet(
     onDismiss: () -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        )) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.tts_settings_voice),
@@ -520,15 +519,16 @@ private fun VoicePickerSheet(
 @Composable
 private fun VoiceRow(title: String, subtitle: String?, selected: Boolean, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(title) },
+        selected = selected,
+        onClick = onClick,
         supportingContent = subtitle?.let { { Text(it) } },
         trailingContent = if (selected) {
             { Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
         } else {
             null
         },
-        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 8.dp),
-    )
+        modifier = Modifier.padding(horizontal = 8.dp),
+    ) { Text(title) }
 }
 
 @Composable

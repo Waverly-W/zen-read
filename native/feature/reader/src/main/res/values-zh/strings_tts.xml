@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reader_tts_listen">听书</string>
+    <string name="reader_tts_read_from_here">从这里开始朗读</string>
     <string name="reader_tts_play">播放</string>
     <string name="reader_tts_pause">暂停</string>
     <string name="reader_tts_previous">上一句</string>

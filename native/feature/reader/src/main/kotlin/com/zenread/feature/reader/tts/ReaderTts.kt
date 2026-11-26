@@ -11,8 +11,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -30,6 +32,8 @@ internal class ReaderTtsHandle(
     val active: Boolean,
     /** Starts reading from the visible page (asks for the notification permission first). */
     val start: () -> Unit,
+    /** Starts reading from a CFI, e.g. the current selection. */
+    val startFrom: (String) -> Unit,
 )
 
 /**
@@ -90,22 +94,23 @@ internal fun rememberReaderTts(
 
     val currentBook by rememberUpdatedState(book)
     val currentSource by rememberUpdatedState(source)
+    var pendingCfi by remember { mutableStateOf<String?>(null) }
     val startNow = {
         val b = currentBook
         val s = currentSource
-        if (b != null && s != null) viewModel.start(s, b)
+        if (b != null && s != null) viewModel.start(s, b, pendingCfi)
+        pendingCfi = null
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         // Media notifications are exempt on most devices; start either way.
         startNow()
     }
-    return ReaderTtsHandle(
-        active = active,
-        start = {
-            val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            if (needsPermission) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else startNow()
-        },
-    )
+    val request = { cfi: String? ->
+        pendingCfi = cfi
+        val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsPermission) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else startNow()
+    }
+    return ReaderTtsHandle(active = active, start = { request(null) }, startFrom = { request(it) })
 }

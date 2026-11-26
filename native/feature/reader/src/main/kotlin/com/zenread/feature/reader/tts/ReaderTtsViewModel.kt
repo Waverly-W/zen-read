@@ -17,8 +17,8 @@ class ReaderTtsViewModel @Inject constructor(
 ) : ViewModel() {
     val state: StateFlow<TtsPlaybackState> = controller.state
 
-    internal fun start(source: TtsTextSource, book: Book) =
-        controller.start(source, TtsBookInfo(book.id, book.title, book.author, book.coverPath))
+    internal fun start(source: TtsTextSource, book: Book, fromCfi: String? = null) =
+        controller.start(source, TtsBookInfo(book.id, book.title, book.author, book.coverPath), fromCfi)
 
     fun togglePlayPause() = controller.togglePlayPause()
     fun next() = controller.next()
