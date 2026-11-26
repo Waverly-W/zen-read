@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_service_google_free">Google Translate (free)</string>
+    <string name="translate_service_microsoft_free">Microsoft Translator (free)</string>
+    <string name="translate_service_microsoft">Microsoft Translator (API key)</string>
+    <string name="translate_service_deepl">DeepL</string>
+    <string name="translate_service_google_cloud">Google Cloud Translation</string>
+    <string name="translate_field_api_key">API key</string>
+    <string name="translate_field_region">Region</string>
+    <string name="translate_field_region_hint">Azure resource region, e.g. eastasia. Leave empty for global resources.</string>
+    <string name="translate_field_deepl_hint">Free-plan keys end in “:fx”; Pro keys are detected automatically.</string>
+</resources>

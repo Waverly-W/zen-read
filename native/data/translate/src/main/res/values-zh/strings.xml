@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="translate_service_google_free">Google 翻译（免费）</string>
+    <string name="translate_service_microsoft_free">微软翻译（免费）</string>
+    <string name="translate_service_microsoft">微软翻译（API 密钥）</string>
+    <string name="translate_service_deepl">DeepL</string>
+    <string name="translate_service_google_cloud">Google Cloud 翻译</string>
+    <string name="translate_field_api_key">API 密钥</string>
+    <string name="translate_field_region">区域</string>
+    <string name="translate_field_region_hint">Azure 资源所在区域，例如 eastasia。全局资源留空即可。</string>
+    <string name="translate_field_deepl_hint">免费版密钥以“:fx”结尾；专业版密钥会自动识别。</string>
+</resources>
