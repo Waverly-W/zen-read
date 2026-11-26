@@ -29,6 +29,12 @@ data class ReaderSettings(
     val sideMargin: Float = 6f,
     val pageTurn: PageTurnStyle = PageTurnStyle.SLIDE,
     val theme: ReadingTheme = ReadingTheme.AUTO,
+    /** Body font. */
+    val font: ReaderFont = ReaderFont.Book,
+    /** Separate face for Latin letters and digits; null uses [font] for everything. */
+    val latinFont: ReaderFont? = null,
+    /** CSS weight for body text, [FONT_WEIGHT_MIN]..[FONT_WEIGHT_MAX] in steps of 100. */
+    val fontWeight: Int = 400,
 ) {
     companion object {
         const val FONT_SCALE_MIN = 0.8f
@@ -37,5 +43,7 @@ data class ReaderSettings(
         const val LINE_HEIGHT_MAX = 2.6f
         const val SIDE_MARGIN_MIN = 2f
         const val SIDE_MARGIN_MAX = 16f
+        const val FONT_WEIGHT_MIN = 300
+        const val FONT_WEIGHT_MAX = 700
     }
 }

@@ -1,3 +1,6 @@
+// Zen Read local change (see UPSTREAM.md): `serif` / `sans-serif` / `monospace`
+// are accepted as unquoted CSS generic families for the body font and as
+// local() system faces for the English font.
 // Limit the English face even when the imported file also contains CJK glyphs.
 // Chinese/full-width punctuation (and curly quotes used in Chinese) stays with
 // the body face. No text nodes are split: selection/CFIs/TTS remain unchanged.
@@ -6,22 +9,31 @@ const bookMarker = '/* modu-book-font-fallback */';
 const quote = value => '"' + String(value).replace(/[\\"\n\r\f]/g,
   char => '\\' + char.charCodeAt(0).toString(16) + ' ') + '"';
 
+const genericFamilies = new Set(['serif', 'sans-serif', 'monospace']);
+const systemSans = 'local("Arial"), local("Roboto"), local("Noto Sans"), local("DejaVu Sans"), local("Liberation Sans")';
+const localSources = {
+  system: systemSans,
+  'sans-serif': systemSans,
+  serif: 'local("Noto Serif"), local("NotoSerif-Regular"), local("Droid Serif"), local("Georgia"), local("Times New Roman"), local("Liberation Serif"), local("DejaVu Serif")',
+  monospace: 'local("Droid Sans Mono"), local("Roboto Mono"), local("Noto Sans Mono"), local("Courier New"), local("Liberation Mono"), local("DejaVu Sans Mono")',
+};
+
 export function readerFontCSS({ fontName = 'book', fontPath = '',
   englishFontName, englishFontPath } = {}) {
   let faces = '';
+  const generic = genericFamilies.has(fontName);
   const body = fontName === 'book' ? null : fontName === 'system'
-    ? 'system-ui' : quote(fontName);
-  if (body && fontName !== 'system' && fontPath) {
+    ? 'system-ui' : generic ? fontName : quote(fontName);
+  if (body && fontName !== 'system' && !generic && fontPath) {
     faces += `@font-face { font-family: ${body}; src: url(${quote(fontPath)}); font-display: block; }`;
   }
+  const local = Object.prototype.hasOwnProperty.call(localSources, englishFontName) ? localSources[englishFontName] : null;
   if (!englishFontName || englishFontName === 'follow' ||
-      (englishFontName !== 'system' && !englishFontPath)) {
+      (!local && !englishFontPath)) {
     return { faces, family: body ? `font-family: ${body} !important;` : '' };
   }
   const english = quote('ModuEnglish_' + englishFontName);
-  const source = englishFontName === 'system'
-    ? 'local("Arial"), local("Roboto"), local("Noto Sans"), local("DejaVu Sans"), local("Liberation Sans")'
-    : `url(${quote(englishFontPath)})`;
+  const source = local ?? `url(${quote(englishFontPath)})`;
   faces += `@font-face { font-family: ${english}; src: ${source}; unicode-range: ${englishUnicodeRange}; font-display: block; }`;
   return { faces, family: `${body ? '' : bookMarker}
     font-family: ${english}, ${body ?? 'var(--modu-book-font-family, serif)'} !important;` };

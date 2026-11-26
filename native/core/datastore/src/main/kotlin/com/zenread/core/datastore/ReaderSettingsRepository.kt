@@ -5,9 +5,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.zenread.core.model.PageTurnStyle
+import com.zenread.core.model.ReaderFont
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +36,9 @@ class ReaderSettingsRepository @Inject constructor(
             prefs[SIDE_MARGIN] = next.sideMargin
             prefs[PAGE_TURN] = next.pageTurn.name
             prefs[THEME] = next.theme.name
+            prefs[FONT] = next.font.id
+            prefs[LATIN_FONT] = next.latinFont?.id.orEmpty()
+            prefs[FONT_WEIGHT] = next.fontWeight
         }
     }
 
@@ -45,6 +50,10 @@ class ReaderSettingsRepository @Inject constructor(
             sideMargin = this[SIDE_MARGIN] ?: defaults.sideMargin,
             pageTurn = this[PAGE_TURN].toEnum(defaults.pageTurn),
             theme = this[THEME].toEnum(defaults.theme),
+            font = ReaderFont.parse(this[FONT]) ?: defaults.font,
+            latinFont = ReaderFont.parse(this[LATIN_FONT]).takeUnless { it == ReaderFont.Book },
+            fontWeight = (this[FONT_WEIGHT] ?: defaults.fontWeight)
+                .coerceIn(ReaderSettings.FONT_WEIGHT_MIN, ReaderSettings.FONT_WEIGHT_MAX),
         )
     }
 
@@ -54,6 +63,9 @@ class ReaderSettingsRepository @Inject constructor(
         val SIDE_MARGIN = floatPreferencesKey("side_margin")
         val PAGE_TURN = stringPreferencesKey("page_turn")
         val THEME = stringPreferencesKey("theme")
+        val FONT = stringPreferencesKey("font")
+        val LATIN_FONT = stringPreferencesKey("latin_font")
+        val FONT_WEIGHT = intPreferencesKey("font_weight")
     }
 }
 

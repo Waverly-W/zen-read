@@ -37,6 +37,7 @@ import com.zenread.core.designsystem.component.ZenSlider
 import com.zenread.core.model.PageTurnStyle
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
+import com.zenread.feature.fonts.FontSettingRow
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -60,6 +61,9 @@ internal fun TypographySheet(
                     }
                 }
             }
+
+            // Opens the font picker sheet (feature:fonts).
+            FontSettingRow()
 
             Section(R.string.reader_font_size) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

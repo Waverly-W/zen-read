@@ -141,3 +141,11 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ## 9. 许可证
 
 本项目复用了 foliate-js（MIT），并参照 ReadAny（GPL-3.0-or-later）的代码移植逻辑，因此整体仍以 **GPL-3.0-or-later** 发布。保留根目录下的 `LICENSE`、`LICENSES/`、`NOTICE` 和 `UPSTREAM.md`。移植过来的文件在文件头注明来源路径。
+
+## 10. 阅读字体
+
+- 模块：`data:fonts`（字体目录、导入校验、按需下载、删除、写入阅读设置）；`feature:fonts`（字体选择器界面，嵌入阅读页排版面板的「字体」行和「设置 → 阅读」页，没有自己的导航入口）。`feature:fonts` 是供这两个界面复用的组件库，是「feature 之间互不依赖」的唯一例外。
+- 选择以 `ReaderFont` 的 id 存进 `ReaderSettings`：`book`（跟随书籍，默认）、`system:serif|sans-serif|monospace`、`bundled:<文件名>`、`file:<文件名>`。`ReaderFontStyle` 把它换算成 foliate-js 的 `fontName` / `fontPath`；西文字体对应 `englishFontName` / `englishFontPath`，借助 `unicode-range` 只覆盖拉丁字符。
+- 导入和下载的文件放在 `filesDir/fonts/`，文件名是内容 SHA-256 的前 16 位加扩展名，用户的原文件名不会进入文件系统；显示名称记在 `filesDir/fonts-index.json`。页面通过 `/fonts/<文件名>` 读取已安装字体，通过 `/fonts/bundled/<文件名>` 读取 APK `assets/fonts/` 中的内置字体；只接受单段、合法的字体文件名。
+- 只内置 65 KB 的 Atkinson Hyperlegible Next。中文字体体积大（11–14 MB），改为按需下载，链接固定到具体提交并校验 SHA-256。上游 Flutter 自带的思源宋体是裁剪过的子集，却仍沿用保留字体名，不符合 OFL，因此不带。
+- `reader-fonts.js` 有一处本地修改，见 `reader/engine/src/main/assets/reader/UPSTREAM.md`。

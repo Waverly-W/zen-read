@@ -40,6 +40,7 @@ class ReaderWebViewFactory @Inject constructor(
             .setDomain(ReaderOrigin.HOST)
             .addPathHandler(ReaderOrigin.READER_PATH, ReaderAssetHandler(context.applicationContext))
             .addPathHandler(ReaderOrigin.BOOK_PATH, BookFileHandler(files))
+            .addPathHandler(ReaderFontFiles.PATH, ReaderFontHandler(context.applicationContext))
             .build()
 
         return ReaderWebView(context).apply {
@@ -115,6 +116,38 @@ private class BookFileHandler(private val files: BookFileRegistry) : WebViewAsse
             "OK",
             mapOf("Cache-Control" to "no-store", "X-Content-Type-Options" to "nosniff"),
             FileInputStream(file),
+        )
+    }
+}
+
+/**
+ * Serves reading fonts: installed files from [ReaderFontFiles.directory] and bundled assets.
+ * Only plain font file names are accepted (see [ReaderFontFiles.resolve]); file names are
+ * content hashes, so responses may be cached.
+ */
+private class ReaderFontHandler(private val context: Context) : WebViewAssetLoader.PathHandler {
+    override fun handle(path: String): WebResourceResponse? {
+        val target = ReaderFontFiles.resolve(path, ReaderFontFiles.directory(context)) ?: return null
+        val type = ReaderFontFiles.mimeType(path.substringAfterLast('/')) ?: return null
+        val stream = try {
+            when (target) {
+                is ReaderFontFiles.Target.Installed -> FileInputStream(target.file)
+                is ReaderFontFiles.Target.Bundled -> context.assets.open(target.assetPath)
+            }
+        } catch (_: IOException) {
+            return null
+        }
+        return WebResourceResponse(
+            type,
+            null,
+            200,
+            "OK",
+            mapOf(
+                "Cache-Control" to "max-age=31536000, immutable",
+                "Access-Control-Allow-Origin" to "*",
+                "X-Content-Type-Options" to "nosniff",
+            ),
+            stream,
         )
     }
 }

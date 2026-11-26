@@ -5,3 +5,8 @@ plugins {
 android {
     namespace = "com.zenread.feature.settings"
 }
+
+dependencies {
+    implementation(project(":core:datastore"))
+    implementation(project(":feature:fonts"))
+}

@@ -18,4 +18,13 @@
     <string name="settings_back">返回</string>
     <string name="settings_coming_soon">即将推出</string>
     <string name="settings_coming_soon_body">这个页面还在开发中。</string>
+    <!-- Reading page (settings.reading) -->
+    <string name="settings_reading_layout">排版</string>
+    <string name="settings_reading_font_size">字号</string>
+    <string name="settings_reading_line_height">行距</string>
+    <string name="settings_reading_margins">页边距</string>
+    <string name="settings_reading_page_turn">翻页方式</string>
+    <string name="settings_reading_turn_slide">滑动</string>
+    <string name="settings_reading_turn_scroll">滚动</string>
+    <string name="settings_reading_turn_none">无动画</string>
 </resources>
