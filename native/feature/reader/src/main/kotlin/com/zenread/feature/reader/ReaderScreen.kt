@@ -49,6 +49,8 @@ import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
+import com.zenread.feature.reader.ai.AiPanelRequest
+import com.zenread.feature.reader.ai.ReaderAiHost
 import com.zenread.reader.engine.ReaderBridge
 import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
@@ -84,6 +86,7 @@ fun ReaderScreen(
     val annotations by viewModel.annotations.collectAsStateWithLifecycle()
     var controller by remember { mutableStateOf<ReaderController?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var aiPanel by remember { mutableStateOf<AiPanelRequest?>(null) }
     val context = LocalContext.current
     val copy = { text: String ->
         context.getSystemService(ClipboardManager::class.java)
@@ -165,6 +168,10 @@ fun ReaderScreen(
                 onNote = viewModel::noteOnSelection,
                 onCopy = { copy(selection.text); viewModel.clearSelection() },
                 onDelete = viewModel::deleteMarksInSelection,
+                onAskAi = {
+                    aiPanel = AiPanelRequest(quote = selection.text)
+                    viewModel.clearSelection()
+                },
             )
         }
         state.tapped?.let { (annotation, rect) ->
@@ -192,6 +199,24 @@ fun ReaderScreen(
             onPrevChapter = { controller?.prevSection() },
             onNextChapter = { controller?.nextSection() },
             onSeek = { controller?.goToPercent(it) },
+            onAskAi = {
+                viewModel.setChromeVisible(false)
+                aiPanel = AiPanelRequest()
+            },
+        )
+    }
+
+    aiPanel?.let { request ->
+        ReaderAiHost(
+            bookId = bookId,
+            request = request,
+            controller = controller,
+            chapterTitle = state.location?.chapterTitle,
+            onJump = { cfi ->
+                aiPanel = null
+                viewModel.goTo(cfi)
+            },
+            onDismiss = { aiPanel = null },
         )
     }
 

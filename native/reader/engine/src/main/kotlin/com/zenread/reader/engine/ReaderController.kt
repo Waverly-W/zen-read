@@ -2,10 +2,15 @@ package com.zenread.reader.engine
 
 import android.webkit.WebView
 import com.zenread.core.model.Annotation
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /** Commands into the page (functions `book.js` exposes on `window`). */
@@ -48,6 +53,22 @@ class ReaderController(private val webView: WebView) {
 
     /** Asks foliate-js to bookmark the current page; it replies with a `BookmarkRequest`. */
     fun bookmarkCurrentPage() = call("addBookmarkHere()")
+
+    /**
+     * Plain text of the chapter on screen (whitespace collapsed), or null before the page is
+     * ready. Call on the main thread.
+     */
+    suspend fun chapterText(): String? = suspendCancellableCoroutine { cont ->
+        webView.evaluateJavascript("(function(){ try { return theChapterContent() } catch (e) { return null } })()") { raw ->
+            val text = raw?.let { runCatching { Json.parseToJsonElement(it).jsonPrimitive.contentOrNull }.getOrNull() }
+            cont.resume(
+                text?.replace(Regex("[ \\t\\u00A0]+"), " ")
+                    ?.replace(Regex("\\s*\\n\\s*(\\n\\s*)+"), "\n\n")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() },
+            )
+        }
+    }
 
     private fun call(script: String) {
         // Before onLoadEnd `reader` is undefined; swallow instead of surfacing JS errors.

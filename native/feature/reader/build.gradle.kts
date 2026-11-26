@@ -12,4 +12,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
+    // phase 5 (AI)
+    implementation(project(":data:ai"))
+    implementation(libs.markdown.renderer.m3)
 }

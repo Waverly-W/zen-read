@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_settings_providers">Providers</string>
+    <string name="ai_settings_no_providers">No providers yet. Add one to chat about your books.</string>
+    <string name="ai_settings_add_provider">Add provider</string>
+    <string name="ai_settings_models">Models</string>
+    <string name="ai_settings_chat_model">Chat model</string>
+    <string name="ai_settings_embedding_model">Embedding model</string>
+    <string name="ai_settings_embedding_help">Used to index whole books for questions with sources. Without one, the index uses keyword search only.</string>
+    <string name="ai_settings_none">None</string>
+    <string name="ai_settings_not_set">Not set</string>
+    <string name="ai_settings_index">Book index</string>
+    <string name="ai_settings_chunk_size">Passage length: %1$d characters</string>
+    <string name="ai_settings_chunk_overlap">Passage overlap: %1$d characters</string>
+    <string name="ai_settings_top_k">Passages per question: %1$d</string>
+    <string name="ai_settings_use_index">Search the book index when answering questions</string>
+    <string name="ai_settings_unmetered">Index only on Wi-Fi</string>
+    <string name="ai_settings_index_note">Changing passage length or overlap takes effect when a book is indexed again.</string>
+    <string name="ai_settings_indexed_books">Indexed books</string>
+    <string name="ai_settings_indexed_summary">%1$d passages · %2$s</string>
+    <string name="ai_settings_keyword_only">keyword search</string>
+    <string name="ai_settings_delete_index">Delete index</string>
+    <string name="ai_settings_status_ready">ready</string>
+    <string name="ai_settings_status_working">indexing</string>
+    <string name="ai_settings_status_paused">paused</string>
+    <string name="ai_settings_status_failed">failed</string>
+    <string name="ai_settings_privacy">Book text is sent to the provider you configure only when you ask a question, run a skill or index a book.</string>
+
+    <string name="ai_provider_new">New provider</string>
+    <string name="ai_provider_edit">Edit provider</string>
+    <string name="ai_provider_name">Name</string>
+    <string name="ai_provider_protocol">API type</string>
+    <string name="ai_provider_openai">OpenAI-compatible</string>
+    <string name="ai_provider_anthropic">Anthropic</string>
+    <string name="ai_provider_gemini">Gemini</string>
+    <string name="ai_provider_base_url">Base URL</string>
+    <string name="ai_provider_base_url_help_openai">The API root, e.g. https://api.openai.com/v1 or https://api.deepseek.com/v1</string>
+    <string name="ai_provider_base_url_help_anthropic">Usually https://api.anthropic.com</string>
+    <string name="ai_provider_base_url_help_gemini">Usually https://generativelanguage.googleapis.com</string>
+    <string name="ai_provider_api_key">API key</string>
+    <string name="ai_provider_api_key_saved">A key is saved. Type to replace it.</string>
+    <string name="ai_provider_api_key_help">Several keys, separated by commas, are used in turn.</string>
+    <string name="ai_provider_clear_key">Remove saved key</string>
+    <string name="ai_provider_chat_models">Chat models</string>
+    <string name="ai_provider_embedding_models">Embedding models</string>
+    <string name="ai_provider_add_model">Add model</string>
+    <string name="ai_provider_model_name">Model name</string>
+    <string name="ai_provider_fetch_models">Fetch models</string>
+    <string name="ai_provider_test">Test connection</string>
+    <string name="ai_provider_save">Save</string>
+    <string name="ai_provider_delete">Delete provider</string>
+    <string name="ai_provider_enabled">Enabled</string>
+    <string name="ai_provider_remove_model">Remove %1$s</string>
+    <string name="ai_provider_test_ok">Connection works.</string>
+    <string name="ai_provider_fetched">Found %1$d chat and %2$d embedding models.</string>
+    <string name="ai_provider_needs_model">Add a chat model first.</string>
+    <string name="ai_provider_failed">Failed: %1$s</string>
+    <string name="ai_provider_model_params">Parameters for %1$s</string>
+    <string name="ai_provider_temperature">Temperature</string>
+    <string name="ai_provider_temperature_value">Temperature: %1$s</string>
+    <string name="ai_provider_default">Provider default</string>
+    <string name="ai_provider_max_tokens">Max output tokens</string>
+    <string name="ai_provider_max_tokens_hint">Empty = provider default</string>
+    <string name="ai_provider_done">Done</string>
+    <string name="ai_provider_cancel">Cancel</string>
+    <string name="ai_provider_custom_params">custom</string>
+</resources>

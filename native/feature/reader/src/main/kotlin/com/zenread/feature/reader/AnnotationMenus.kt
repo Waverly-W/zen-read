@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditNote
@@ -49,6 +50,7 @@ internal fun SelectionMenu(
     onNote: () -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
+    onAskAi: (() -> Unit)? = null,
 ) {
     AnchoredMenu(rect) {
         MenuCard {
@@ -60,6 +62,9 @@ internal fun SelectionMenu(
                 }
                 IconButton(onClick = onNote) { Icon(Icons.Rounded.EditNote, stringResource(R.string.reader_add_note)) }
                 IconButton(onClick = onCopy) { Icon(Icons.Rounded.ContentCopy, stringResource(R.string.reader_copy)) }
+                if (onAskAi != null) {
+                    IconButton(onClick = onAskAi) { Icon(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_ask)) }
+                }
                 if (overlapsMarks) {
                     IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.reader_delete_mark)) }
                 }
