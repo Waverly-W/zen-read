@@ -117,6 +117,17 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 | 6 同步 | 同步引擎、WebDAV、S3、冲突处理 | 两台设备之间能同步进度、标注和书籍 |
 | 7 收尾 | 性能、无障碍、平板适配、删除 Flutter 代码 | 发布 release |
 
+## 7.1 并行开发约定（阶段 3–6）
+
+阶段 3–6 由多个子代理在各自的 git worktree 中并行开发，最后统一合并。为减少冲突：
+
+- **各管各的模块**：TTS → `data:tts`，翻译 → `data:translate`，AI → `data:ai`，同步 → `data:sync`。各阶段的设置页放在 `feature:settings` 中，按领域分子包，例如 `com.zenread.feature.settings.tts`。
+- **公共部件已经备好，不要另起炉灶**：HTTP 用 `core:network` 注入的 `OkHttpClient` / `Json`（需要不同超时就用 `newBuilder()`）；API Key 和密码一律存入 `core:datastore` 的 `SecretStore`；普通偏好用各自模块的 DataStore 文件。
+- **主数据库**（`ZenReadDatabase`）只允许同步阶段修改（升到 v3）。其他阶段需要持久化时，在自己的模块里建独立的 Room 数据库，例如 AI 索引放在 `ai_index.db`。
+- **共享文件只做追加**：`settings.gradle.kts`、`libs.versions.toml`、`ZenReadApp.kt` 里设置分类的 `when` 分支、阅读页的 `SelectionMenu` 按钮、`ReaderController` / `ReaderEvent` 的新方法和新事件，都只追加，不重排、不改动别人的代码。阅读页的新界面写在新文件里。
+- **不连设备**：不使用 adb、模拟器或真机，设备验证由合并方统一做。纯逻辑要写单元测试，最后必须让 `./gradlew :app:assembleDebug test lintDebug` 全部通过。
+- 多个构建会同时运行，请加参数控制资源：`./gradlew --max-workers=2 -Dorg.gradle.jvmargs=-Xmx2g -Pkotlin.compiler.execution.strategy=in-process …`
+
 ## 8. 构建
 
 需要 JDK 17 以上，以及 Android SDK Platform **37.2**（Compose BOM 2026.11 要求 compileSdk ≥ 37.1）和 Build-Tools 37。`targetSdk` 仍为 36，`minSdk` 为 26。

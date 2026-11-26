@@ -30,6 +30,8 @@ import com.zenread.feature.notes.NotesKey
 import com.zenread.feature.reader.ReaderKey
 import com.zenread.feature.reader.ReaderScreen
 import com.zenread.feature.notes.NotesScreen
+import com.zenread.feature.settings.PlaceholderSettingsScreen
+import com.zenread.feature.settings.SettingsCategoryKey
 import com.zenread.feature.settings.SettingsKey
 import com.zenread.feature.settings.SettingsScreen
 
@@ -94,7 +96,14 @@ fun ZenReadApp() {
                     ReaderScreen(bookId = key.bookId, openAt = key.cfi, onBack = { backStack.removeLastOrNull() })
                 }
                 entry<NotesKey> { NotesScreen(onOpen = { bookId, cfi -> backStack.add(ReaderKey(bookId, cfi)) }) }
-                entry<SettingsKey> { SettingsScreen(onOpenCategory = { /* Phase 1+ */ }) }
+                entry<SettingsKey> { SettingsScreen(onOpenCategory = { backStack.add(SettingsCategoryKey(it)) }) }
+                entry<SettingsCategoryKey> { key ->
+                    val back = { backStack.removeLastOrNull(); Unit }
+                    // Each phase adds its category here, e.g. SettingsCategory.TTS -> TtsSettingsScreen(onBack = back).
+                    when (key.category) {
+                        else -> PlaceholderSettingsScreen(key.category, onBack = back)
+                    }
+                }
             },
         )
     }

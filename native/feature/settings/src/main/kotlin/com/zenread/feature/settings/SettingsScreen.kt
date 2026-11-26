@@ -36,25 +36,33 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object SettingsKey : NavKey
 
+/** Top-level settings pages. Each phase routes its category to its own screen in the app module. */
+enum class SettingsCategory { APPEARANCE, READING, SYNC, AI, TTS, TRANSLATE, ABOUT }
+
+/** Detail page for one settings category. */
+@Serializable
+data class SettingsCategoryKey(val category: SettingsCategory) : NavKey
+
 private data class SettingsEntry(
+    val category: SettingsCategory,
     val icon: ImageVector,
     @param:StringRes val title: Int,
     @param:StringRes val summary: Int,
 )
 
 private val entries = listOf(
-    SettingsEntry(Icons.Rounded.Palette, R.string.settings_appearance, R.string.settings_appearance_summary),
-    SettingsEntry(Icons.AutoMirrored.Rounded.MenuBook, R.string.settings_reading, R.string.settings_reading_summary),
-    SettingsEntry(Icons.Rounded.CloudSync, R.string.settings_sync, R.string.settings_sync_summary),
-    SettingsEntry(Icons.Rounded.AutoAwesome, R.string.settings_ai, R.string.settings_ai_summary),
-    SettingsEntry(Icons.Rounded.Headphones, R.string.settings_tts, R.string.settings_tts_summary),
-    SettingsEntry(Icons.Rounded.Translate, R.string.settings_translate, R.string.settings_translate_summary),
-    SettingsEntry(Icons.Rounded.Info, R.string.settings_about, R.string.settings_about_summary),
+    SettingsEntry(SettingsCategory.APPEARANCE, Icons.Rounded.Palette, R.string.settings_appearance, R.string.settings_appearance_summary),
+    SettingsEntry(SettingsCategory.READING, Icons.AutoMirrored.Rounded.MenuBook, R.string.settings_reading, R.string.settings_reading_summary),
+    SettingsEntry(SettingsCategory.SYNC, Icons.Rounded.CloudSync, R.string.settings_sync, R.string.settings_sync_summary),
+    SettingsEntry(SettingsCategory.AI, Icons.Rounded.AutoAwesome, R.string.settings_ai, R.string.settings_ai_summary),
+    SettingsEntry(SettingsCategory.TTS, Icons.Rounded.Headphones, R.string.settings_tts, R.string.settings_tts_summary),
+    SettingsEntry(SettingsCategory.TRANSLATE, Icons.Rounded.Translate, R.string.settings_translate, R.string.settings_translate_summary),
+    SettingsEntry(SettingsCategory.ABOUT, Icons.Rounded.Info, R.string.settings_about, R.string.settings_about_summary),
 )
 
 @Composable
 fun SettingsScreen(
-    onOpenCategory: (Int) -> Unit,
+    onOpenCategory: (SettingsCategory) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -81,7 +89,7 @@ fun SettingsScreen(
                 SegmentedRow(
                     entry = entry,
                     shape = segmentShape(index, entries.size),
-                    onClick = { onOpenCategory(entry.title) },
+                    onClick = { onOpenCategory(entry.category) },
                 )
             }
         }
