@@ -95,8 +95,61 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 ## 5. 数据与同步
 
 - 数据库沿用上游的表语义，但重新命名并使用 Room 迁移管理。书籍文件放在应用私有目录，导入时复制或通过 SAF 持久授权引用。
-- 同步引擎移植上游 `row_sync_engine / sync_merge / immutable_sync_log`：按行带时间戳和墓碑记录合并，传输层抽象为 `SyncTransport`，WebDAV 与 S3（自实现 SigV4，参考上游 `s3_signer.dart` 及其测试向量）各一个实现。
-- **待定**：远端目录布局是否与 Modu 保持兼容。兼容的好处是可以直接接管现有的 Modu 云端数据，代价是被它的格式约束。建议实现到同步阶段时再决定，在此之前不对远端格式做任何承诺。
+- 同步引擎（`data:sync`）借鉴上游 `row_sync_engine / sync_merge / immutable_sync_log`：按行带时间戳和墓碑记录合并，传输层抽象为 `SyncTransport`，WebDAV 与 S3（自实现 SigV4，用 AWS 文档示例和上游 `@smithy/signature-v4` 向量做回归测试）各一个实现。
+- **决定：不兼容 Modu 的远端格式**，用自己的、有文档的格式（下文）。Modu 的格式是整库 SQLite 归档 + 大量兼容分支，接管它的代价大于收益；版本号写在目录名和 `manifest.json` 里，以后不兼容的改动换 `v2` 目录。
+
+### 5.1 数据库 v3（同步标识）
+
+| 表 | 变更 | 用途 |
+|---|---|---|
+| `books` | 新增 `updated_at`（迁移时 = `created_at`） | 书籍元数据的时钟；阅读进度用已有的 `last_read_at` 作时钟 |
+| `annotations` | 新增 `uuid`（迁移时为每行生成随机 UUID v4，唯一索引） | 标注的全局 id |
+| `sync_tombstones(kind, sync_id, deleted_at)` | 新表 | 本机删除记录，供同步传播 |
+
+书籍的全局 id 就是文件的 SHA-256（`file_hash`）。`BookDao.delete` / `AnnotationDao.delete` 在同一事务中写墓碑；删书时其标注随外键级联删除但不写墓碑，云端仍保留，同一文件再次导入时标注会回来。手写迁移 `MIGRATION_2_3`（唯一索引必须在回填之后创建，自动迁移做不到），由 Robolectric + `MigrationTestHelper` 测试覆盖。
+
+### 5.2 远端布局
+
+根目录是 WebDAV 地址，或 S3 的 bucket + 可选前缀：
+
+```
+ZenRead/v1/
+├─ manifest.json          {"format":"zenread-sync","version":1,"createdAt":…}，首次同步时写入
+├─ log/<sha256>.json      不可变的记录分段，文件名 = 内容的 SHA-256
+├─ books/<sha256>.<ext>   书籍文件，文件名 = 文件内容的 SHA-256 + 主扩展名（epub/mobi/fb2/pdf/cbz）
+└─ covers/<sha256>        封面图片，文件名 = 书的 SHA-256
+```
+
+分段格式（JSON，UTF-8）：
+
+```json
+{"format":"zenread-sync-segment","version":1,"device":"<uuid>","createdAt":1764200000000,
+ "records":[
+  {"kind":"book","id":"<sha256>","updatedAt":…,"device":"…","data":{"title":"…","author":"…","format":"EPUB","createdAt":…}},
+  {"kind":"progress","id":"<sha256>","updatedAt":…,"device":"…","data":{"location":"epubcfi(…)","progress":0.42}},
+  {"kind":"annotation","id":"<uuid>","updatedAt":…,"device":"…","data":{"book":"<sha256>","type":"HIGHLIGHT","cfi":"…","text":"…","chapter":"…","color":"F6C945","note":"…","position":0.3,"createdAt":…}},
+  {"kind":"annotation","id":"<uuid>","updatedAt":…,"device":"…","deleted":true}
+ ]}
+```
+
+### 5.3 合并规则
+
+- 每行（`kind/id`）最后写入者胜：比较 `updatedAt`；相同时墓碑优先；内容相同视为一致；否则依次比较 `device`、规范化 JSON，保证每台设备选出同一个赢家。
+- 标注的墓碑永远胜出（离线编辑不会复活已删除的标注；重新标注会生成新 uuid）。书籍是普通 LWW，所以删除后重新导入同一文件会恢复。
+- 两台设备独立标注了同一范围（同书、同类型、同 CFI，uuid 不同）时，保留较新的（再比 uuid），另一条在所有设备上写墓碑。
+- 未知 `kind` 的记录（来自更新的版本）照常参与合并和压缩，但不应用到本地。
+- 应用远端记录时在一个事务里与当前本地行再比较一次，同步期间的本地修改不会被旧数据覆盖。
+
+### 5.4 写入安全
+
+- 分段内容寻址、只增不改，多台设备并发发布无需锁或 CAS；读取时校验 SHA-256，校验过的分段缓存在本机 `noBackupFilesDir/sync/<账号哈希>/segments/`，不再重复下载。
+- WebDAV 写入先 PUT 到同目录的 `.zenread-<uuid>.part`，再 MOVE 到目标名（服务器不支持 MOVE 时退回直接 PUT）；S3 的 PUT 本身是原子的，并带签名的 `x-amz-content-sha256`，服务器会拒收损坏的上传。
+- 分段超过 32 个时压缩：先发布包含全部记录（含墓碑）的新分段，再只删除本次读到的旧分段；并发发布的分段不会被删。读者遇到被删除的分段（404）会重新列目录。
+- 书籍文件按需下载，下载到临时文件并校验 SHA-256 后再改名。任何一步中断，下次同步都会根据当前状态重新计算缺什么。
+
+### 5.5 调度
+
+`SyncManager` 用进程内互斥锁保证同一时间只有一次同步。WorkManager（均要求联网）：每小时一次、本地修改后 90 秒去抖（每次修改重置计时）、应用启动后 5 秒、同步进行中数据库有变化时之后再补一次；设置页的「立即同步」直接在应用作用域运行。坚果云的自动同步间隔至少 10 分钟，并在本机限制每 30 分钟 480 次请求；任何服务器返回 429/503 后按 Retry-After 或指数退避暂停。`SyncInitializer`（androidx.startup）在第一个 Activity 创建时启动调度，不改 `Application`。
 
 ## 6. AI 与 RAG
 
@@ -121,7 +174,7 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 | 3 听书 | 系统 TTS、Edge TTS、在线 TTS，Media3 通知 | 锁屏后能继续朗读，并能在通知栏控制 |
 | 4 翻译 | 选区翻译、段落对照翻译 | 可配置多个服务商 |
 | 5 AI | 对话、技能、RAG 索引与检索 | 能针对整本书提问并给出引用位置 |
-| 6 同步 | 同步引擎、WebDAV、S3、冲突处理 | 两台设备之间能同步进度、标注和书籍 |
+| 6 同步 | 同步引擎、WebDAV、S3、冲突处理 | 两台设备之间能同步进度、标注和书籍（单元测试覆盖两台设备经 WebDAV / S3 模拟服务器收敛；真机待验证） |
 | 7 收尾 | 性能、无障碍、平板适配、删除 Flutter 代码 | 发布 release |
 
 ## 7.1 并行开发约定（阶段 3–6）

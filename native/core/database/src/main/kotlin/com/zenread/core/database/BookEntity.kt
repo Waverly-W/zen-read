@@ -23,6 +23,11 @@ data class BookEntity(
     val progress: Float,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "last_read_at") val lastReadAt: Long?,
+    /**
+     * When the book's metadata (title, author, format) last changed; the sync clock for the
+     * book row. Reading progress uses [lastReadAt] as its own clock. Added in schema v3.
+     */
+    @ColumnInfo(name = "updated_at", defaultValue = "0") val updatedAt: Long = createdAt,
 )
 
 fun BookEntity.asModel() = Book(

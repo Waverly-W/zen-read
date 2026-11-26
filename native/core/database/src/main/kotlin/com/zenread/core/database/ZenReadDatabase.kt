@@ -13,14 +13,23 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Database(
-    entities = [BookEntity::class, AnnotationEntity::class],
-    version = 2,
+    entities = [BookEntity::class, AnnotationEntity::class, SyncTombstoneEntity::class],
+    version = 3,
     exportSchema = true,
+    // 2 → 3 is the manual MIGRATION_2_3 (see Migrations.kt).
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class ZenReadDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun annotationDao(): AnnotationDao
+    abstract fun syncDao(): SyncDao
+
+    companion object {
+        const val NAME = "zenread.db"
+
+        /** Tables whose changes must reach other devices. */
+        val SYNCED_TABLES = arrayOf("books", "annotations", "sync_tombstones")
+    }
 }
 
 @Module
@@ -29,11 +38,16 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): ZenReadDatabase =
-        Room.databaseBuilder(context, ZenReadDatabase::class.java, "zenread.db").build()
+        Room.databaseBuilder(context, ZenReadDatabase::class.java, ZenReadDatabase.NAME)
+            .addMigrations(MIGRATION_2_3)
+            .build()
 
     @Provides
     fun bookDao(db: ZenReadDatabase): BookDao = db.bookDao()
 
     @Provides
     fun annotationDao(db: ZenReadDatabase): AnnotationDao = db.annotationDao()
+
+    @Provides
+    fun syncDao(db: ZenReadDatabase): SyncDao = db.syncDao()
 }

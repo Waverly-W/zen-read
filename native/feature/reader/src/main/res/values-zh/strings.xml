@@ -33,4 +33,5 @@
     <string name="reader_delete_mark">删除标注</string>
     <string name="reader_bookmark_add">为本页加书签</string>
     <string name="reader_bookmark_remove">移除书签</string>
+    <string name="reader_error_download">这本书在同步文件夹中，但下载失败。请检查网络和同步设置。</string>
 </resources>

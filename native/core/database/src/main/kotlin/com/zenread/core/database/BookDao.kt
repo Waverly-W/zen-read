@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -27,6 +28,23 @@ interface BookDao {
     )
     suspend fun updateProgress(id: Long, location: String, progress: Float, readAt: Long)
 
+    /**
+     * Deletes the book (its annotations cascade) and records a tombstone keyed by the file
+     * hash so the deletion syncs. Annotations get no tombstones: they stay in the cloud and
+     * come back if the same file is imported again.
+     */
+    @Transaction
+    suspend fun delete(id: Long) {
+        val existing = get(id) ?: return
+        insertTombstone(
+            SyncTombstoneEntity(SyncTombstoneEntity.KIND_BOOK, existing.fileHash, System.currentTimeMillis()),
+        )
+        deleteRow(id)
+    }
+
     @Query("DELETE FROM books WHERE id = :id")
-    suspend fun delete(id: Long)
+    suspend fun deleteRow(id: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTombstone(tombstone: SyncTombstoneEntity)
 }

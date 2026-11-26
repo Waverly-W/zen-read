@@ -12,4 +12,5 @@ dependencies {
     // phase 5 (AI)
     implementation(project(":data:ai"))
     implementation(libs.androidx.activity.compose)
+    implementation(project(":data:sync"))
 }

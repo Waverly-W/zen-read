@@ -38,6 +38,7 @@ import com.zenread.feature.settings.SettingsScreen
 import com.zenread.feature.settings.translate.TranslateSettingsScreen
 import com.zenread.feature.settings.tts.TtsSettingsScreen
 import com.zenread.feature.settings.ai.AiSettingsScreen
+import com.zenread.feature.settings.sync.SyncSettingsScreen
 
 private enum class TopLevelDestination(
     val key: NavKey,
@@ -108,6 +109,7 @@ fun ZenReadApp() {
                         SettingsCategory.TRANSLATE -> TranslateSettingsScreen(onBack = back)
                         SettingsCategory.TTS -> TtsSettingsScreen(onBack = back)
                         SettingsCategory.AI -> AiSettingsScreen(onBack = back)
+                        SettingsCategory.SYNC -> SyncSettingsScreen(onBack = back)
                         else -> PlaceholderSettingsScreen(key.category, onBack = back)
                     }
                 }
