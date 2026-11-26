@@ -1,0 +1,2430 @@
+import { fitMobileImages } from './mobile-image-fit.js'
+import { touchPageDirection } from './touch-paging.js'
+import { waitForReaderFonts, clearReaderFontFallback } from './reader-font-ready.js'
+import { captureBookFontFamilies } from './reader-fonts.js'
+import { prepareReaderFontWeight } from './reader-font-weight.js'
+import { SectionWindowCache } from './section-window-cache.js'
+import { ReadingActionGate } from './reading-action-gate.js'
+import { bookFrameSandbox } from './frame-script-policy.js'
+import { sanitizeBookDocument } from './script_policy.js'
+import { ContinuousSectionWindow } from './continuous-section-window.js'
+import { autoScrollPixelsPerSecond } from './reader-auto-scroll.js'
+import { VerticalColumnRules } from './vertical-column-rules.js'
+import './transient-scrollbar.js'
+import { alignPaginatedText, resetPageAlignment, fitTextLineSpacing, lineAlignedOffset, invalidateScrollLines, prepareScrollLines } from './text-page-layout.js'
+
+const lerp = (min, max, x) => x * (max - min) + min
+const easeOutSine = x => Math.sin((x * Math.PI) / 2)
+// const easeOutSine = x => 1 - (1 - x) * (1 - x);
+const animate = (a, b, duration, ease, render) => new Promise(resolve => {
+  let start
+  const step = now => {
+    start ??= now
+    const fraction = Math.min(1, (now - start) / duration)
+    render(lerp(a, b, ease(fraction)))
+    if (fraction < 1) requestAnimationFrame(step)
+    else resolve()
+  }
+  requestAnimationFrame(step)
+})
+
+// collapsed range doesn't return client rects sometimes (or always?)
+// try make get a non-collapsed range or element
+const uncollapse = range => {
+  if (!range?.collapsed) return range
+  const { endOffset, endContainer } = range
+  if (endContainer.nodeType === 1) return endContainer
+  if (endOffset + 1 < endContainer.length) range.setEnd(endContainer, endOffset + 1)
+  else if (endOffset > 1) range.setStart(endContainer, endOffset - 1)
+  else return endContainer.parentNode
+  return range
+}
+
+const makeRange = (doc, node, start, end = start) => {
+  const range = doc.createRange()
+  range.setStart(node, start)
+  range.setEnd(node, end)
+  return range
+}
+
+// use binary search to find an offset value in a text node
+const bisectNode = (doc, node, cb, start = 0, end = node.nodeValue.length) => {
+  if (end - start === 1) {
+    const result = cb(makeRange(doc, node, start), makeRange(doc, node, end))
+    return result < 0 ? start : end
+  }
+  const mid = Math.floor(start + (end - start) / 2)
+  const result = cb(makeRange(doc, node, start, mid), makeRange(doc, node, mid, end))
+  return result < 0 ? bisectNode(doc, node, cb, start, mid)
+    : result > 0 ? bisectNode(doc, node, cb, mid, end) : mid
+}
+
+const { SHOW_ELEMENT, SHOW_TEXT, SHOW_CDATA_SECTION,
+  FILTER_ACCEPT, FILTER_REJECT, FILTER_SKIP } = NodeFilter
+
+const filter = SHOW_ELEMENT | SHOW_TEXT | SHOW_CDATA_SECTION
+
+const getVisibleRange = (doc, start, end, mapRect) => {
+  // Locate the boundary nodes without measuring every glyph on the page.
+  const acceptNode = node => {
+    const name = node.localName?.toLowerCase()
+    // ignore all scripts, styles, and their children
+    if (name === 'script' || name === 'style') return FILTER_REJECT
+    if (node.nodeType === 1) {
+      const rect = node.getBoundingClientRect()
+      // Hidden notes report a zero rect at the first page's origin. Boxless
+      // containers can still have visible descendants, so keep traversing them.
+      if (!rect.width || !rect.height) return FILTER_SKIP
+      const { left, right } = mapRect(rect)
+      // no need to check child nodes if it's completely out of view
+      if (right < start || left > end) return FILTER_REJECT
+      // elements must be completely in view to be considered visible
+      // because you can't specify offsets for elements
+      if (left >= start && right <= end) return FILTER_ACCEPT
+      // TODO: it should probably allow elements that do not contain text
+      // because they can exceed the whole viewport in both directions
+      // especially in scrolled mode
+    } else {
+      // ignore empty text nodes
+      if (!node.nodeValue?.trim()) return FILTER_REJECT
+      // create range to get rect
+      const range = doc.createRange()
+      range.selectNodeContents(node)
+      const rect = range.getBoundingClientRect()
+      if (!rect.width || !rect.height) return FILTER_REJECT
+      const { left, right } = mapRect(rect)
+      // it's visible if any part of it is in view
+      if (right >= start && left <= end) return FILTER_ACCEPT
+    }
+    return FILTER_SKIP
+  }
+  if (!doc) return
+  const walker = doc.createTreeWalker(doc.body, filter, { acceptNode })
+  const from = walker.nextNode() ?? doc.body
+  walker.currentNode = doc.body
+  let to = walker.lastChild() ?? from
+  for (let node = walker.lastChild(); node; node = walker.lastChild()) to = node
+
+  // find the offset at which visibility changes
+  const startOffset = from.nodeType === 1 ? 0
+    : bisectNode(doc, from, (a, b) => {
+      const p = mapRect(a.getBoundingClientRect())
+      const q = mapRect(b.getBoundingClientRect())
+      if (p.right < start && q.left > start) return 0
+      return q.left > start ? -1 : 1
+    })
+  const endOffset = to.nodeType === 1 ? 0
+    : bisectNode(doc, to, (a, b) => {
+      const p = mapRect(a.getBoundingClientRect())
+      const q = mapRect(b.getBoundingClientRect())
+      if (p.right < end && q.left > end) return 0
+      return q.left > end ? -1 : 1
+    })
+
+  const range = doc.createRange()
+  range.setStart(from, startOffset)
+  range.setEnd(to, endOffset)
+  return range
+}
+
+const getDirection = doc => {
+  const { defaultView } = doc
+  const { writingMode, direction } = defaultView.getComputedStyle(doc.body)
+  const vertical = writingMode === 'vertical-rl'
+    || writingMode === 'vertical-lr'
+  const rtl = doc.body.dir === 'rtl'
+    || direction === 'rtl'
+    || doc.documentElement.dir === 'rtl'
+  return { vertical, rtl, writingMode }
+}
+
+async function translationSnapshot(src, signal) {
+  if (!src?.startsWith('blob:')) throw new Error('Local chapter resource required')
+  const response = await fetch(src, { signal })
+  const type = response.headers.get('content-type')?.split(';')[0]
+  if (!response.ok || !['text/html', 'application/xhtml+xml'].includes(type))
+    throw new Error('Unsupported chapter resource')
+  const doc = new DOMParser().parseFromString(await response.text(), type)
+  if (!doc.head || !doc.body) throw new Error('Chapter document unavailable')
+  sanitizeBookDocument(doc)
+  const csp = doc.head.querySelector('meta[http-equiv="Content-Security-Policy"]')
+  csp.setAttribute('content', "default-src 'none'; img-src 'self' blob: data:; " +
+    "style-src 'self' blob: 'unsafe-inline'; font-src 'self' blob: data:; base-uri 'none'; form-action 'none'")
+  for (const link of doc.head.querySelectorAll('link[rel]'))
+    if (!link.relList.contains('stylesheet')) link.remove()
+  // Keep XML stylesheets under the same policy as HTML stylesheet links.
+  let preceding = csp
+  for (const instruction of doc.childNodes) {
+    if (instruction.nodeType !== 7 || instruction.target !== 'xml-stylesheet') continue
+    const href = instruction.data.match(/\bhref\s*=\s*(['"])(.*?)\1/i)?.[2]
+    if (!href) continue
+    const link = doc.createElementNS(doc.documentElement.namespaceURI, 'link')
+    link.setAttribute('rel', 'stylesheet')
+    link.setAttribute('href', href)
+    preceding.after(link)
+    preceding = link
+  }
+  const html = type === 'text/html'
+    ? `${doc.compatMode === 'CSS1Compat' ? '<!doctype html>' : ''}${doc.documentElement.outerHTML}`
+    : new XMLSerializer().serializeToString(doc.documentElement)
+  return URL.createObjectURL(new Blob([html], { type }))
+}
+
+// const getBackground = doc => {
+//   const bodyStyle = doc.defaultView.getComputedStyle(doc.body)
+//   return bodyStyle.backgroundColor === 'rgba(0, 0, 0, 0)'
+//     && bodyStyle.backgroundImage === 'none'
+//     ? doc.defaultView.getComputedStyle(doc.documentElement).background
+//     : bodyStyle.background
+// }
+const getBackground = (bgimgUrl) => {
+  let bg
+  if (bgimgUrl === 'none') {
+    bg = `none`
+  } else {
+    bg = `url(${JSON.stringify(bgimgUrl)})`
+  }
+  return bg
+}
+
+const applyBackground = (el, bgimgUrl, blur, opacity, fit) => {
+  el.style.background = getBackground(bgimgUrl)
+  el.style.backgroundPosition = 'center center'
+  el.style.backgroundRepeat = 'no-repeat'
+  el.style.backgroundAttachment = 'scroll'
+  el.style.backgroundSize = fit === 'stretch' ? '100% 100%' : 'cover'
+  el.style.filter = (blur && blur > 0) ? `blur(${blur}px)` : ''
+  el.style.opacity = (opacity != null) ? opacity : 1
+  // Expand the background element beyond its grid cell when blur is active so
+  // the blurred edges are not clipped by the parent overflow:hidden boundary.
+  if (blur && blur > 0) {
+    const expand = `${blur * 2}px`
+    el.style.margin = `-${expand}`
+    el.style.width = `calc(100% + ${expand} * 2)`
+    el.style.height = `calc(100% + ${expand} * 2)`
+    // Keep the visual fill identical to the unblurred state; only the
+    // element bounds expand so blurred edges can bleed outside the viewport.
+  } else {
+    el.style.margin = ''
+    el.style.width = ''
+    el.style.height = ''
+  }
+}
+
+const makeMarginals = (length, part) => Array.from({ length }, () => {
+  const div = document.createElement('div')
+  const child = document.createElement('div')
+  div.append(child)
+  child.setAttribute('part', part)
+  return div
+})
+
+const setStylesImportant = (el, styles) => {
+  const { style } = el
+  for (const [k, v] of Object.entries(styles)) style.setProperty(k, v, 'important')
+}
+
+class View {
+  #destroyed = false
+  #cancelLoad
+  #cleanup = []
+  #observer = new ResizeObserver(() => this.expand())
+  #element = document.createElement('div')
+  #iframe = document.createElement('iframe')
+  #contentRange = document.createRange()
+  #overlayer
+  #vertical = false
+  #rtl = false
+  #writingMode = 'horizontal-ltr'
+  #column = true
+  #size
+  #layout = {}
+  #layoutRevision = 0
+  constructor({ container, onExpand, allowAutoplay = true, allowBookScripts = true }) {
+    this.container = container
+    this.onExpand = onExpand
+    this.#iframe.setAttribute('part', 'filter')
+    this.#element.append(this.#iframe)
+    Object.assign(this.#element.style, {
+      boxSizing: 'content-box',
+      position: 'relative',
+      overflow: 'hidden',
+      flex: '0 0 auto',
+      width: '100%', height: '100%',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      contain: 'layout paint size',
+      contentVisibility: 'auto',
+      willChange: 'transform',
+    })
+    Object.assign(this.#iframe.style, {
+      overflow: 'hidden',
+      border: '0',
+      display: 'none',
+      width: '100%', height: '100%',
+    })
+    this.#iframe.setAttribute('sandbox', allowBookScripts ? bookFrameSandbox() : 'allow-same-origin')
+    if (!allowAutoplay) this.#iframe.setAttribute('allow', "autoplay 'none'")
+    this.#iframe.setAttribute('scrolling', 'no')
+  }
+  get element() {
+    return this.#element
+  }
+  get document() {
+    return this.#iframe.contentDocument
+  }
+  get layoutRevision() { return this.#layoutRevision }
+  cancelLoad() { this.#cancelLoad?.() }
+  async load(src, afterLoad, beforeRender) {
+    if (typeof src !== 'string') throw new Error(`${src} is not string`)
+    const started = Date.now()
+    const timing = (stage, since) => this.container?.dispatchEvent(new CustomEvent('chapter-state', {
+      detail: { state: 'timing', stage, durationMs: Math.max(0, Date.now() - since) },
+    }))
+    return new Promise((resolve, reject) => {
+      let settled = false
+      let processing = false
+      const fonts = new AbortController()
+      const documentError = () => Object.assign(new Error('Reader chapter document unavailable'),
+        { name: 'ReaderChapterDocumentError' })
+      const failed = () => finish(documentError())
+      const finish = error => {
+        if (settled) return
+        settled = true
+        fonts.abort()
+        this.#iframe.removeEventListener('load', loaded)
+        this.#iframe.removeEventListener('error', failed)
+        this.#cancelLoad = null
+        if (error) reject(error)
+        else resolve()
+      }
+      const loaded = async () => {
+        try {
+          if (settled || processing) return
+          // The native load event can itself wait for publisher fonts. Do not
+          // impose a second deadline that defeats the cancellable font wait.
+          if (this.#destroyed) throw new Error('Reader view closed')
+          const doc = this.document
+          // Ignore the initial blank iframe event, not the requested chapter.
+          if (doc?.URL === 'about:blank' && src !== 'about:blank') return
+          if (!doc?.body) throw documentError()
+          processing = true
+          timing('chapter_document', started)
+          const preparing = Date.now()
+          afterLoad?.(doc)
+
+          // it needs to be visible for Firefox to get computed style
+          this.#iframe.style.visibility = 'hidden'
+          this.#iframe.style.display = 'block'
+          const { vertical, rtl, writingMode } = getDirection(doc)
+          this.#iframe.style.display = 'none'
+
+          this.#vertical = vertical
+          this.#rtl = rtl
+          this.#writingMode = writingMode
+
+          this.#contentRange.selectNodeContents(doc.body)
+          this.#iframe.style.display = 'block'
+          timing('chapter_prepare', preparing)
+          // Settle original fonts (or generic fallback after a real failure)
+          // before pagination. Keep the outgoing chapter visible during this wait.
+          const fontStarted = Date.now()
+          const ready = await waitForReaderFonts(doc, fonts.signal)
+          if (settled) return
+          timing('chapter_fonts', fontStarted)
+          if (this.#destroyed) throw new Error('Reader view closed')
+          if (this.document !== doc || !doc.body) throw documentError()
+          if (!ready) throw new Error('Reader font loading failed')
+          // Measure the latest viewport, including resizes during font loading.
+          const layoutStarted = Date.now()
+          const layout = beforeRender?.({ vertical, rtl })
+          timing('layout_viewport', layoutStarted)
+          this.render(layout, timing)
+          timing('chapter_layout', layoutStarted)
+          this.#iframe.style.visibility = ''
+          this.#observer.observe(doc.body)
+          // Translation changes line flow without necessarily resizing the body.
+          const translationChanged = () => { if (!this.#destroyed) this.render(this.#layout) }
+          doc.addEventListener('modu-translation-layout', translationChanged)
+          this.#cleanup.push(() => doc.removeEventListener('modu-translation-layout', translationChanged))
+          // Lazy images can obtain their intrinsic dimensions after pagination.
+          const refit = () => {
+            if (this.#layout.mobileImageFit) { this.setImageSize(); this.expand(); }
+          }
+          doc.addEventListener('load', refit, true)
+          doc.addEventListener('loadedmetadata', refit, true)
+          this.#cleanup.push(() => {
+            doc.removeEventListener('load', refit, true)
+            doc.removeEventListener('loadedmetadata', refit, true)
+          })
+
+          // the resize observer above doesn't work in Firefox
+          // (see https://bugzilla.mozilla.org/show_bug.cgi?id=1832939)
+          // until the bug is fixed we can at least account for font load
+          // Do not expand again for the ready promise we just awaited. Only
+          // account for genuinely later fonts, e.g. after a style change.
+          const fontsChanged = () => { if (!this.#destroyed) this.render(this.#layout) }
+          doc.fonts?.addEventListener?.('loadingdone', fontsChanged)
+          this.#cleanup.push(() => doc.fonts?.removeEventListener?.('loadingdone', fontsChanged))
+
+          finish()
+        } catch (error) {
+          finish(error)
+        }
+      }
+      this.#cancelLoad = () => finish(Object.assign(new Error('Reader view closed or navigation cancelled'), { name: 'AbortError' }))
+      this.#iframe.addEventListener('load', loaded)
+      this.#iframe.addEventListener('error', failed, { once: true })
+      this.#iframe.src = src
+    })
+  }
+  refreshDirection() {
+    const direction = getDirection(this.document)
+    const changed = direction.writingMode !== this.#writingMode || direction.rtl !== this.#rtl
+    this.#vertical = direction.vertical
+    this.#rtl = direction.rtl
+    this.#writingMode = direction.writingMode
+    return { ...direction, changed }
+  }
+  render(layout, timing) {
+    if (!layout) return
+    this.#layoutRevision++
+    const resetting = Date.now()
+    for (const animation of this.#element.getAnimations?.() ?? []) animation.cancel()
+    resetPageAlignment(this.document)
+    this.#column = layout.flow !== 'scrolled'
+    this.#layout = layout
+    timing?.('layout_reset', resetting)
+    if (this.#column) this.columnize(layout, timing)
+    else this.scrolled(layout, timing)
+  }
+  scrolled({ gap, columnWidth, height }, timing) {
+    const styling = Date.now()
+    const vertical = this.#vertical
+    const doc = this.document
+    if (!doc) return
+    setStylesImportant(doc.documentElement, {
+      'box-sizing': 'border-box',
+      'padding': vertical ? `${gap}px 0` : `0 ${gap}px`,
+      'column-width': 'auto',
+      'height': 'auto',
+      'width': 'auto',
+    })
+    setStylesImportant(doc.body, {
+      [vertical ? 'max-width' : 'max-height']: 'none',
+      [vertical ? 'max-height' : 'max-width']: `${columnWidth}px`,
+      'margin': 'auto',
+    })
+    this.setImageSize()
+    timing?.('layout_styles', styling)
+    const spacing = Date.now()
+    if (!vertical && !this.#rtl) fitTextLineSpacing(doc, height)
+    timing?.('layout_spacing', spacing)
+    const expanding = Date.now()
+    this.expand()
+    timing?.('layout_expand', expanding)
+  }
+  columnize({ width, height, gap, columnWidth, topMargin, bottomMargin }, timing) {
+    const styling = Date.now()
+    const vertical = this.#vertical
+    this.#size = vertical ? height : width
+
+    const doc = this.document
+
+    const verticlePadding = `${gap / 2}px ${topMargin}px ${gap / 2}px ${bottomMargin}px`
+    const horizontalPadding = `${topMargin}px ${gap / 2}px ${bottomMargin}px ${gap / 2}px`
+
+    setStylesImportant(doc.documentElement, {
+      'box-sizing': 'border-box',
+      'column-width': `${Math.trunc(columnWidth)}px`,
+      'column-gap': `${gap}px`,
+      'column-fill': 'auto',
+      // Measure at the new viewport size, not the previous iframe's column width.
+      'width': `${width}px`,
+      'height': `${height}px`,
+      'padding': vertical ? verticlePadding : horizontalPadding,
+      'overflow': 'hidden',
+      // force wrap long words
+      'overflow-wrap': 'break-word',
+      // reset some potentially problematic props
+      'position': 'static', 'border': '0', 'margin': '0',
+      'max-height': 'none', 'max-width': 'none',
+      'min-height': 'none', 'min-width': 'none',
+      // fix glyph clipping in WebKit
+      '-webkit-line-box-contain': 'block glyphs replaced',
+    })
+    setStylesImportant(doc.body, {
+      'max-height': 'none',
+      'max-width': 'none',
+      'margin': '0',
+    })
+    this.setImageSize()
+    timing?.('layout_styles', styling)
+    const spacing = Date.now()
+    if (!vertical && !this.#rtl) fitTextLineSpacing(doc)
+    timing?.('layout_spacing', spacing)
+    const extent = alignPaginatedText(doc, { width, height, gap, columnWidth, topMargin, bottomMargin },
+      vertical || this.#rtl, timing, () => this.#measureColumnExtent())
+    const expanding = Date.now()
+    this.expand(true, extent)
+    timing?.('layout_expand', expanding)
+  }
+  setImageSize() {
+    if (this.#layout.mobileImageFit) {
+      fitMobileImages(this.document, this.#layout, this.#vertical)
+      return
+    }
+    const { width, height, margin, columnWidth } = this.#layout
+    const vertical = this.#vertical
+    const doc = this.document
+    for (const el of doc.body.querySelectorAll('img, svg, video')) {
+      // preserve max size if they are already set
+      const { maxHeight, maxWidth } = doc.defaultView.getComputedStyle(el)
+      // Cap max-width to the column width to prevent images from overflowing
+      // into the next page when the EPUB embeds a large inline max-width value.
+      const effectiveMaxWidth = vertical
+        ? `${width - margin * 2}px`
+        : columnWidth
+          ? `${columnWidth}px`
+          : (maxWidth !== 'none' && maxWidth !== '0px' ? maxWidth : '100%')
+      setStylesImportant(el, {
+        'max-height': vertical
+          ? (maxHeight !== 'none' && maxHeight !== '0px' ? maxHeight : '100%')
+          : `${height - margin * 2}px`,
+        'max-width': effectiveMaxWidth,
+        'object-fit': 'contain',
+        'page-break-inside': 'avoid',
+        'break-inside': 'avoid',
+        'box-sizing': 'border-box',
+      })
+    }
+  }
+  #measureColumnExtent() {
+    const side = this.#vertical ? 'height' : 'width'
+    this.#contentRange.selectNodeContents(this.document.body)
+    const contentRect = this.#contentRange.getBoundingClientRect()
+    const rootRect = this.document.documentElement.getBoundingClientRect()
+    // WebKit can insert a leading column break in horizontal writing.
+    const contentStart = this.#vertical ? 0
+      : this.#rtl ? rootRect.right - contentRect.right : contentRect.left - rootRect.left
+    return contentStart + contentRect[side]
+  }
+  expand(notify = true, measuredExtent) {
+    if (this.#destroyed) return
+    const { documentElement } = this.document
+    if (this.#column) {
+      const side = this.#vertical ? 'height' : 'width'
+      const otherSide = this.#vertical ? 'width' : 'height'
+      const contentSize = measuredExtent ?? this.#measureColumnExtent()
+      const pageCount = Math.ceil(contentSize / this.#size)
+      const expandedSize = pageCount * this.#size
+      this.#element.style.padding = '0'
+      this.#iframe.style[side] = `${expandedSize}px`
+      this.#element.style[side] = `${expandedSize + this.#size * 2}px`
+      this.#iframe.style[otherSide] = '100%'
+      this.#element.style[otherSide] = '100%'
+      documentElement.style[side] = `${this.#size}px`
+      if (this.#overlayer) {
+        this.#overlayer.element.style.margin = '0'
+        this.#overlayer.element.style.left = this.#vertical ? '0' : `${this.#size}px`
+        this.#overlayer.element.style.top = this.#vertical ? `${this.#size}px` : '0'
+        this.#overlayer.element.style[side] = `${expandedSize}px`
+        this.#overlayer.redraw()
+      }
+    } else {
+      const side = this.#vertical ? 'width' : 'height'
+      const otherSide = this.#vertical ? 'height' : 'width'
+      const contentSize = documentElement.getBoundingClientRect()[side]
+      const expandedSize = contentSize
+      const { margin } = this.#layout
+      const padding = this.#vertical ? `0 ${margin}px` : `${margin}px 0`
+      this.#element.style.padding = padding
+      this.#iframe.style[side] = `${expandedSize}px`
+      this.#element.style[side] = `${expandedSize}px`
+      this.#iframe.style[otherSide] = '100%'
+      this.#element.style[otherSide] = '100%'
+      if (this.#overlayer) {
+        this.#overlayer.element.style.margin = padding
+        this.#overlayer.element.style.left = '0'
+        this.#overlayer.element.style.top = '0'
+        this.#overlayer.element.style[side] = `${expandedSize}px`
+        this.#overlayer.redraw()
+      }
+    }
+    if (!this.#column && !this.#vertical) {
+      invalidateScrollLines(this.document)
+      prepareScrollLines(this.document)
+    }
+    if (notify) this.onExpand()
+  }
+  set overlayer(overlayer) {
+    this.#overlayer = overlayer
+    this.#element.append(overlayer.element)
+    // A preloaded chapter has already been laid out before activation creates
+    // its overlay. Apply that layout now, not at some later font/image resize.
+    this.expand(false)
+  }
+  get overlayer() {
+    return this.#overlayer
+  }
+  get writingMode() {
+    return this.#writingMode
+  }
+  destroy() {
+    this.#destroyed = true
+    for (const animation of this.#element.getAnimations?.() ?? []) animation.cancel()
+    this.#overlayer?.destroy()
+    this.#cancelLoad?.()
+    this.#cancelLoad = null
+    this.#observer.disconnect()
+    for (const cleanup of this.#cleanup) cleanup()
+    this.#cleanup = []
+  }
+}
+
+// NOTE: everything here assumes the so-called "negative scroll type" for RTL
+export class Paginator extends HTMLElement {
+  static observedAttributes = [
+    'flow', 'gap', 'top-margin', 'bottom-margin', 'background-color',
+    'max-inline-size', 'max-block-size', 'max-column-count', 'column-threshold', 'bgimg-url',
+    'bgimg-blur', 'bgimg-opacity', 'bgimg-fit',
+  ]
+  #root = this.attachShadow({ mode: 'open' })
+  #observer = new ResizeObserver(() => this.render())
+  #top
+  #background
+  #columnRules
+  #scrollbar
+  #container
+  // #header
+  // #footer
+  #view
+  #continuous
+  #continuousDisabled = false
+  #retiringView
+  #preparingView = false
+  #destroyed = false
+  #vertical = false
+  #readingActions = new ReadingActionGate()
+  #rtl = false
+  #margin = 0
+  #index = -1
+  #sectionCache
+  #anchor = 0 // anchor view to a fraction (0-1), Range, or Element
+  #justAnchored = false
+  #locked = false // while true, prevent any further navigation
+  #navigationVersion = 0
+  #navigationWaiters = new Set()
+  #pendingViews = new Set()
+  #lastNavigation
+  #styles
+  #styleMap = new WeakMap()
+  #mediaQuery = matchMedia('(prefers-color-scheme: dark)')
+  #mediaQueryListener
+  #ignoreNativeScroll = false
+  #pendingScrollFrame = null
+  #scrollRelocateTimer = null
+  #lastScrollRelocate = -Infinity
+  #coalesceScrollProgress = /Android|OpenHarmony|HarmonyOS/i.test(navigator.userAgent)
+  #lineSettleTimer = null
+  #autoScrolling = false
+  #fractionalAutoScroll = null
+  #fractionalAutoScrollDpr = null
+  #anchorTop = null
+  #scrollPointerDown = false
+  #lastScrollTop = 0
+  #scrollDirection = 1
+  #needsLineSettle = false
+  #settledAt = null
+  #touchState
+  #touchScrolled
+  #suppressTouchClickUntil = 0
+  #selectionAtPointerDown = false
+  get mobileTouchPaging() {
+    return this.getAttribute('mobile-touch-paging') === 'true' && !this.scrolled
+  }
+  get tapOnlyPageTurn() {
+    return this.mobileTouchPaging && this.getAttribute('tap-only-page-turn') === 'true'
+  }
+  #loadingNext = false
+  #loadingPrev = false
+  #pendingRelocate = null
+  #isSnapping = false
+  constructor() {
+    super()
+    this.#root.innerHTML = `<style>
+        :host {
+            display: block;
+            container-type: size;
+        }
+        :host, #top {
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+        :host { background-color: var(--_background-color); }
+        #top {
+            height: 100%;
+            // --_gap: 7%;
+            --_max-inline-size: 720px;
+            --_max-block-size: 1440px;
+            --_max-column-count: 2;
+            --_max-column-count-portrait: 1;
+            --_max-column-count-spread: var(--_max-column-count);
+            --_half-gap: calc(var(--_gap) / 2);
+            --_max-width: calc(var(--_max-inline-size) * var(--_max-column-count-spread));
+            --_max-height: var(--_max-block-size);
+            display: grid;
+            grid-template-columns:
+                minmax(var(--_half-gap), 1fr)
+                var(--_half-gap)
+                minmax(0, calc(var(--_max-width) - var(--_gap)))
+                var(--_half-gap)
+                minmax(var(--_half-gap), 1fr);
+            grid-template-rows:
+                var(--_top-margin)
+                1fr
+                var(--_bottom-margin);
+        }
+        #top.vertical {
+            --_max-column-count-spread: var(--_max-column-count-portrait);
+            --_max-width: var(--_max-block-size);
+            --_max-height: calc(var(--_max-inline-size) * var(--_max-column-count-spread));
+        }
+        @container (orientation: portrait) {
+            #top { --_max-column-count-spread: var(--_max-column-count-portrait); }
+            #top.vertical { --_max-column-count-spread: var(--_max-column-count); }
+        }
+        #background {
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            pointer-events: none;
+        }
+        #container {
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            -ms-overflow-style: none;  /* Internet Explorer 10+ */
+            scrollbar-width: none;  /* Firefox */
+        }
+        #container::-webkit-scrollbar {
+            display: none;  /* Safari and Chrome */
+        }
+        :host([flow="scrolled"]) #container {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            overflow: auto;
+        }
+        #header {
+            grid-column: 3 / 4;
+            grid-row: 1;
+        }
+        #footer {
+            grid-column: 3 / 4;
+            grid-row: 3;
+            align-self: end;
+        }
+        #header, #footer {
+            display: grid;
+            height: var(--_margin);
+        }
+        #header > *, #footer > * {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+        #header > * > *, #footer > * > * {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            text-align: center;
+            font-size: .75em;
+            opacity: .6;
+        }
+        </style>
+        <div id="background" part="filter"></div>
+        <div id="top">
+            <div id="container"></div>
+        </div>
+        `
+
+    this.#top = this.#root.getElementById('top')
+    this.#background = this.#root.getElementById('background')
+    this.#container = this.#root.getElementById('container')
+    this.#scrollbar = globalThis.moduAttachScrollbar(this.#container, this.#root, {
+      enabled: () => this.scrolled && !this.#vertical,
+      reducedMotion: () => !this.hasAttribute('animated'),
+    })
+    this.#columnRules = new VerticalColumnRules(this, this.#top, this.#container)
+    for (const event of ['wheel', 'touchstart', 'touchmove']) {
+      this.#container.addEventListener(event, e => this.#readingActions.input(e),
+        { passive: true, capture: true })
+    }
+    // this.#header = this.#root.getElementById('header')
+    // this.#footer = this.#root.getElementById('footer')
+
+    this.#observer.observe(this.#container)
+    this.#container.addEventListener('scroll', () => {
+      const top = this.#container.scrollTop
+      if (this.#settledAt != null && Math.abs(top - this.#settledAt) < 1) {
+        this.#settledAt = null
+        this.#lastScrollTop = top
+        return
+      }
+      this.#settledAt = null
+      if (!this.#ignoreNativeScroll && Math.abs(top - this.#lastScrollTop) > .5)
+        this.#scrollDirection = Math.sign(top - this.#lastScrollTop)
+      this.#lastScrollTop = top
+      if (this.#ignoreNativeScroll || this.#autoScrolling) return
+      if (this.#justAnchored) {
+        this.#justAnchored = false
+        return
+      }
+      this.#needsLineSettle = true
+      this.#scheduleLineSettle()
+      if (this.#pendingScrollFrame)
+        cancelAnimationFrame(this.#pendingScrollFrame)
+      this.#pendingScrollFrame = requestAnimationFrame(() => {
+        this.#pendingScrollFrame = null
+        this.#afterScroll('scroll')
+        if (this.scrolled) this.#handleScrollBoundaries()
+      })
+    })
+    this.#container.addEventListener('scrollend', () => {
+      if (this.#scrollRelocateTimer != null) this.#afterScroll('scroll', true)
+    })
+
+    const opts = { passive: false }
+    const rememberSelection = e => {
+      this.#scrollPointerDown = true
+      this.#settledAt = null
+      this.#needsLineSettle = false
+      clearTimeout(this.#lineSettleTimer)
+      if (e.pointerType === 'touch')
+        this.#selectionAtPointerDown = !!(window.getSelection()?.toString() ||
+          e.target?.ownerDocument?.getSelection()?.toString())
+    }
+    const releaseScrollPointer = () => {
+      this.#scrollPointerDown = false
+      this.#scheduleLineSettle()
+    }
+    this.addEventListener('pointerdown', rememberSelection, true)
+    this.addEventListener('pointerup', releaseScrollPointer, true)
+    this.addEventListener('pointercancel', releaseScrollPointer, true)
+    this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
+    this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
+    this.addEventListener('touchend', this.#onTouchEnd.bind(this), opts)
+    this.addEventListener('touchcancel', this.#onTouchCancel.bind(this), opts)
+    const suppressClick = e => {
+      if (Date.now() < this.#suppressTouchClickUntil) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
+    this.addEventListener('click', suppressClick, true)
+    this.addEventListener('load', ({ detail: { doc } }) => {
+      // Events inside a chapter iframe do not bubble to the outer container.
+      for (const event of ['wheel', 'touchstart', 'touchmove']) {
+        doc.addEventListener(event, e => this.#readingActions.input(e),
+          { passive: true, capture: true })
+      }
+      doc.defaultView.addEventListener('blur', () => this.#readingActions.reset())
+      doc.addEventListener('pointerdown', rememberSelection, true)
+      doc.addEventListener('pointerup', releaseScrollPointer, true)
+      doc.addEventListener('pointercancel', releaseScrollPointer, true)
+      doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
+      doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
+      doc.addEventListener('touchend', this.#onTouchEnd.bind(this), opts)
+      doc.addEventListener('touchcancel', this.#onTouchCancel.bind(this), opts)
+      doc.addEventListener('click', suppressClick, true)
+    })
+
+    this.#mediaQueryListener = () => {
+      if (!this.#view) return
+      this.#applyBackground()
+    }
+    this.#mediaQuery.addEventListener('change', this.#mediaQueryListener)
+  }
+  #updatingAttributes = false
+  #attributesNeedRender = false
+  setLayoutAttributes(attributes) {
+    const updating = this.#updatingAttributes
+    this.#updatingAttributes = true
+    try {
+      for (const [name, value] of Object.entries(attributes)) {
+        if (value === null) this.removeAttribute(name)
+        else this.setAttribute(name, value)
+      }
+    } finally {
+      this.#updatingAttributes = updating
+      if (!updating && this.#attributesNeedRender) {
+        this.#attributesNeedRender = false
+        this.render()
+      }
+    }
+  }
+  #renderAttributes() {
+    if (this.#updatingAttributes) this.#attributesNeedRender = true
+    else this.render()
+  }
+  attributeChangedCallback(name, previous, value) {
+    // Reapplying settings must not paginate the whole chapter for each attribute.
+    if (previous === value) return
+    switch (name) {
+      case 'flow':
+        this.#renderAttributes()
+        break
+      case 'max-block-size':
+        this.#top.style.setProperty('--_' + name, value)
+        break
+      case 'background-color':
+        this.style.setProperty('--_background-color', value)
+        break
+      case 'top-margin':
+      case 'bottom-margin':
+      case 'gap':
+      case 'max-column-count':
+      case 'column-threshold':
+      case 'max-inline-size':
+        // needs explicit `render()` as it doesn't necessarily resize
+        this.#top.style.setProperty('--_' + name, value)
+        this.#renderAttributes()
+        break
+      case 'bgimg-url':
+      case 'bgimg-blur':
+      case 'bgimg-opacity':
+      case 'bgimg-fit':
+        if (this.#background) this.#applyBackground()
+        break
+    }
+  }
+  open(book) {
+    this.#sectionCache?.destroy()
+    this.bookDir = book.dir
+    this.sections = book.sections
+    this.#sectionCache = new SectionWindowCache(this.sections)
+  }
+  #applyBackground() {
+    const url = this.getAttribute('bgimg-url') ?? 'none'
+    const blur = parseFloat(this.getAttribute('bgimg-blur') ?? '0')
+    const opacity = parseFloat(this.getAttribute('bgimg-opacity') ?? '1')
+    const fit = this.getAttribute('bgimg-fit') ?? 'cover'
+    applyBackground(this.#background, url, blur, opacity, fit)
+  }
+  #createView() {
+    this.#view = new View({
+      container: this,
+      onExpand: () => {
+        if (!this.#preparingView && !this.#destroyed) this.#restoreExpandedAnchor()
+      },
+    })
+    // Keep the old iframe attached: moving/cloning it would reload its document
+    // or lose selections. Prepare the incoming view outside normal flex flow.
+    Object.assign(this.#view.element.style, {
+      position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+      left: '0', top: '0', contentVisibility: 'visible',
+    })
+    this.#container.append(this.#view.element)
+    return this.#view
+  }
+  #beforeRender({ vertical, rtl }) {
+    this.#vertical = vertical
+    this.#rtl = rtl
+    this.#top.classList.toggle('vertical', vertical)
+
+    // set background to `doc` background
+    // this is needed because the iframe does not fill the whole element
+    this.#applyBackground()
+
+    const { width, height } = this.#container.getBoundingClientRect()
+    // Container queries are unavailable in older WebViews; ResizeObserver
+    // already reruns this layout when the reader's own dimensions change.
+    if (!globalThis.CSS?.supports?.('container-type', 'size')) {
+      this.#top.style.setProperty('--_max-column-count-spread',
+        (height > width) !== vertical
+          ? 'var(--_max-column-count-portrait)' : 'var(--_max-column-count)')
+    }
+
+    const layout = this.#measureLayout(vertical, width, height)
+    const { flow, margin, gap, maxInlineSize, divisor } = layout
+    this.#margin = margin
+    if (flow === 'scrolled') {
+      // Notes scroll along their block axis only: extra vertical-text columns
+      // extend left/right; horizontal text extends down. Leave book flow alone.
+      const footnote = this.hasAttribute('footnote')
+      this.#container.style.overflowX = footnote && !vertical ? 'hidden' : 'auto'
+      this.#container.style.overflowY = footnote && vertical ? 'hidden' : 'auto'
+    } else if (this.mobileTouchPaging) {
+      // Programmatic page turns still work, but the browser cannot leave the
+      // page between columns or impart momentum while the finger is down.
+      this.#container.style.overflowX = 'hidden'
+      this.#container.style.overflowY = 'hidden'
+    } else if (this.getAttribute('desktop-page-input') === 'true') {
+      // Desktop keys/mouse gestures use discrete navigation, never native
+      // scrolling to arbitrary offsets between columns (including with AI open).
+      this.#container.style.overflowX = 'hidden'
+      this.#container.style.overflowY = 'hidden'
+    } else if (vertical) {
+      this.#container.style.overflowX = 'hidden'
+      this.#container.style.overflowY = 'auto'
+    } else {
+      this.#container.style.overflowX = 'auto'
+      this.#container.style.overflowY = 'hidden'
+    }
+    if (flow === 'scrolled') {
+      // FIXME: vertical-rl only, not -lr
+      this.setAttribute('dir', vertical ? 'rtl' : 'ltr')
+      this.#top.style.padding = '0'
+      this.heads = null
+      this.feet = null
+      // this.#header.replaceChildren()
+      // this.#footer.replaceChildren()
+
+      return layout
+    }
+
+    this.setAttribute('dir', rtl ? 'rtl' : 'ltr')
+
+    const marginalDivisor = vertical
+      ? Math.min(2, Math.ceil(width / maxInlineSize))
+      : divisor
+    const marginalStyle = {
+      gridTemplateColumns: `repeat(${marginalDivisor}, 1fr)`,
+      gap: `${gap}px`,
+      direction: this.bookDir === 'rtl' ? 'rtl' : 'ltr',
+    }
+    // Object.assign(this.#header.style, marginalStyle)
+    // Object.assign(this.#footer.style, marginalStyle)
+    const heads = makeMarginals(marginalDivisor, 'head')
+    const feet = makeMarginals(marginalDivisor, 'foot')
+    this.heads = heads.map(el => el.children[0])
+    this.feet = feet.map(el => el.children[0])
+    // this.#header.replaceChildren(...heads)
+    // this.#footer.replaceChildren(...feet)
+
+    return layout
+  }
+  #measureLayout(vertical, width, height) {
+    const size = vertical ? height : width
+    const style = getComputedStyle(this.#top)
+    const maxInlineSize = parseFloat(style.getPropertyValue('--_column-threshold')) || parseFloat(style.getPropertyValue('--_max-inline-size'))
+    const maxColumnCount = parseInt(style.getPropertyValue('--_max-column-count'))
+    const margin = parseFloat(style.getPropertyValue('--_top-margin'))
+
+    const g = parseFloat(style.getPropertyValue('--_gap')) / 100
+    // The gap will be a percentage of the #container, not the whole view.
+    // This means the outer padding will be bigger than the column gap. Let
+    // `a` be the gap percentage. The actual percentage for the column gap
+    // will be (1 - a) * a. Let us call this `b`.
+    //
+    // To make them the same, we start by shrinking the outer padding
+    // setting to `b`, but keep the column gap setting the same at `a`. Then
+    // the actual size for the column gap will be (1 - b) * a. Repeating the
+    // process again and again, we get the sequence
+    //     x₁ = (1 - b) * a
+    //     x₂ = (1 - x₁) * a
+    //     ...
+    // which converges to x = (1 - x) * a. Solving for x, x = a / (1 + a).
+    // So to make the spacing even, we must shrink the outer padding with
+    //     f(x) = x / (1 + x).
+    // But we want to keep the outer padding, and make the inner gap bigger.
+    // So we apply the inverse, f⁻¹ = -x / (x - 1) to the column gap.
+    const gap = -g / (g - 1) * size
+
+    const bottomMargin = parseFloat(style.getPropertyValue('--_bottom-margin'))
+
+    const flow = this.getAttribute('flow')
+    const divisor = maxColumnCount == 0
+      ? Math.min(2, Math.ceil(size / maxInlineSize))
+      : maxColumnCount
+    // The column threshold controls pagination, not scrolling text width.
+    const columnWidth = flow === 'scrolled'
+      ? (vertical || this.hasAttribute('footnote') ? maxInlineSize : Math.max(1, size - 2 * gap))
+      : (size / divisor) - gap
+    return { flow, height, width, margin, gap, columnWidth, maxInlineSize, divisor,
+      topMargin: margin, bottomMargin, mobileImageFit: this.getAttribute('mobile-image-fit') === 'true' }
+  }
+  render() {
+    if (this.#continuous) {
+      if (!this.continuousEnabled) {
+        const entry = this.#continuous.entries.get(this.#continuous.pinned) ?? this.#continuous.current
+        if (!entry) return
+        if (entry !== this.#continuous.current) {
+          this.#continuous.select(entry)
+          this.#anchor = 0
+        }
+        // Transfer ownership without moving/reloading the active iframe.
+        this.#continuous.entries.delete(entry.index)
+        this.#sectionCache.adopt(entry.index, entry.src)
+        this.#continuous.destroy()
+        this.#continuous = null
+        this.#view = entry.view
+        this.#view.onExpand = () => {
+          if (!this.#preparingView && !this.#destroyed) this.#restoreExpandedAnchor()
+        }
+        this.#view.render(this.#beforeRender(this.#view.refreshDirection()))
+        return
+      }
+      for (const entry of this.#continuous.ordered)
+        entry.view.render(this.#beforeRender({ vertical: false, rtl: false }))
+      if (this.#continuous.textAnchor?.entry === this.#continuous.current) this.#afterScroll('layout')
+      else this.scrollToAnchor(this.#anchor)
+      return
+    }
+    if (!this.#view || this.#preparingView || this.#destroyed) return
+    // View expansion restores the anchor after applying the final geometry.
+    this.#view.render(this.#beforeRender(this.#view.refreshDirection()))
+  }
+  get scrolled() {
+    return this.getAttribute('flow') === 'scrolled'
+  }
+  get continuousEnabled() {
+    return this.scrolled && !this.#continuousDisabled && this.getAttribute('continuous-scroll') === 'true'
+  }
+  get continuous() { return !!this.#continuous }
+  pinTtsSection(index) { if (this.#continuous) this.#continuous.pinned = index }
+  get scrollProp() {
+    const { scrolled } = this
+    return this.#vertical ? (scrolled ? 'scrollLeft' : 'scrollTop')
+      : scrolled ? 'scrollTop' : 'scrollLeft'
+  }
+  get sideProp() {
+    const { scrolled } = this
+    return this.#vertical ? (scrolled ? 'width' : 'height')
+      : scrolled ? 'height' : 'width'
+  }
+  get vertical() {
+    return this.#vertical
+  }
+  get size() {
+    return this.#container.getBoundingClientRect()[this.sideProp]
+  }
+  get viewSize() {
+    if (this.#continuous) return this.#container.scrollHeight
+    return this.#view.element.getBoundingClientRect()[this.sideProp]
+  }
+  get start() {
+    return Math.abs(this.#container[this.scrollProp])
+  }
+  get end() {
+    return this.start + this.size
+  }
+  get page() {
+    if (this.#continuous) return undefined
+    return Math.floor(((this.start + this.end) / 2) / this.size)
+  }
+  get pages() {
+    if (this.#continuous) return undefined
+    return Math.round(this.viewSize / this.size)
+  }
+  scrollBy(dx, dy) {
+    const element = this.#container
+    const prop = this.scrollProp
+    const horizontal = prop === 'scrollLeft'
+    const delta = horizontal ? dx : dy
+    if (horizontal) element.scrollBy({ left: delta, top: 0, behavior: 'auto' })
+    else element.scrollBy({ left: 0, top: delta, behavior: 'auto' })
+  }
+  #restoreExpandedAnchor() {
+    const doc = this.#anchor?.startContainer?.ownerDocument
+    const top = this.#anchor?.getBoundingClientRect?.().top
+    if (this.scrolled && !this.#vertical && doc === this.#view?.document &&
+        Number.isFinite(top) && Number.isFinite(this.#anchorTop)) {
+      this.#container.scrollTop += top - this.#anchorTop
+      this.#anchorTop = top
+      this.#afterScroll('layout')
+    } else this.scrollToAnchor(this.#anchor)
+  }
+  get autoScrollSupported() {
+    return this.scrolled && !this.#vertical && !this.#destroyed && !!this.#view
+  }
+  supportsFractionalAutoScroll() {
+    const dpr = globalThis.devicePixelRatio ?? 1
+    if (this.#fractionalAutoScroll != null && this.#fractionalAutoScrollDpr === dpr) return this.#fractionalAutoScroll
+    const element = this.#container, before = element.scrollTop
+    const max = element.scrollHeight - element.clientHeight
+    if (max < 1) return false
+    element.scrollTop = before + (before + .5 <= max ? .5 : -.5)
+    const delta = Math.abs(element.scrollTop - before)
+    element.scrollTop = before
+    this.#fractionalAutoScrollDpr = dpr
+    return this.#fractionalAutoScroll = delta > .001 && delta < .999
+  }
+  scrollPageTarget(target, current) {
+    if (!this.scrolled || this.#vertical || this.getAttribute('scroll-auto-align') === 'false') return target
+    const documents = this.#continuous
+      ? this.#continuous.ordered.map(entry => ({ doc: entry.view.document,
+        offset: this.#continuous.top(entry) + this.#margin }))
+      : [{ doc: this.#view?.document, offset: this.#margin }]
+    const forward = target > current
+    let boundary = null
+    for (const { doc, offset } of documents) {
+      const lines = prepareScrollLines(doc)
+      let lo = 0, hi = lines.length
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1
+        if (lines[mid].top + offset < current - .5) lo = mid + 1
+        else hi = mid
+      }
+      for (let i = lo; i < lines.length && lines[i].bottom + offset <= current + this.size + .5; i++) {
+        const value = forward ? lines[i].top + offset : lines[i].bottom + offset - this.size
+        boundary = boundary == null ? value : forward ? Math.max(boundary, value) : Math.min(boundary, value)
+      }
+    }
+    if (boundary == null || Math.abs(boundary - current) < 1) return target
+    return forward ? Math.min(target, boundary) : Math.max(target, boundary)
+  }
+  getAutoScrollStep() { return Math.max(1, this.scrollPageTarget(this.start + this.scrollPageStep, this.start) - this.start) }
+  getAutoScrollSpeed(fallback = 10) {
+    if (!this.autoScrollSupported || this.#preparingView) return fallback
+    if (!this.#continuous) return autoScrollPixelsPerSecond([
+      { text: this.#getVisibleRange()?.toString(), height: Math.max(0, this.size - this.#margin * 2) },
+    ], fallback)
+    const samples = []
+    for (const entry of this.#continuous.ordered) {
+      const height = entry.view.element.getBoundingClientRect().height
+      const start = this.#container.scrollTop - this.#continuous.top(entry)
+      const from = Math.max(0, start - this.#margin)
+      const to = Math.min(height, start + this.size - this.#margin)
+      if (to <= from) continue
+      const range = getVisibleRange(entry.view.document, from, to, ({ top, bottom }) => ({ left: top, right: bottom }))
+      samples.push({ text: range?.toString(), height: to - from })
+    }
+    return autoScrollPixelsPerSecond(samples, fallback)
+  }
+  setAutoScrolling(enabled) {
+    this.#autoScrolling = enabled === true
+    if (this.#autoScrolling) this.#justAnchored = false
+    this.#needsLineSettle = false
+    clearTimeout(this.#lineSettleTimer)
+    clearTimeout(this.#scrollRelocateTimer)
+    this.#scrollRelocateTimer = null
+  }
+  async autoScrollBy(distance, active = () => true) {
+    if (!this.autoScrollSupported || this.#locked || this.#preparingView || !active()) return 'inactive'
+    if (this.#continuous) {
+      const window = this.#continuous
+      const moved = await window.autoScrollBy(distance, active)
+      if (this.#continuous === window && active() && typeof moved === 'number' && moved > 0 &&
+          window.textAnchor?.entry !== window.current) this.#afterScroll('auto-scroll', true)
+      return moved
+    }
+    const before = this.#container.scrollTop
+    this.#container.scrollTop = Math.max(0, Math.min(before + distance, this.viewSize - this.size))
+    const moved = this.#container.scrollTop - before
+    return moved > 0 ? moved : before >= this.viewSize - this.size - .001 ? 'end' : 0
+  }
+  flushAutoScrollPosition() {
+    if (!this.#autoScrolling) this.#continuous?.track()
+    this.#afterScroll('auto-scroll', true)
+  }
+  snap(vx, vy, touchState) {
+    if (this.#isSnapping) return
+    
+    const state = touchState ?? this.#touchState
+    const velocity = this.#vertical ? vy : vx
+    const { pages, size } = this
+    if (!pages || size === 0) return
+
+    const element = this.#container
+    const { scrollProp } = this
+    const isHorizontal = scrollProp === 'scrollLeft'
+    
+    // Stop native momentum scrolling immediately
+    const currentScrollPos = element[scrollProp]
+    const overflowProp = isHorizontal ? 'overflowX' : 'overflowY'
+    const prevOverflow = element.style[overflowProp]
+    element.style[overflowProp] = 'hidden'
+    element[scrollProp] = currentScrollPos
+    
+    // Calculate current position and target page
+    const currentOffset = Math.abs(currentScrollPos)
+    const currentPage = Math.round(currentOffset / size)
+    
+    // Determine target page based on velocity
+    const velocityThreshold = 0.3  // Higher threshold to reduce accidental triggers
+    let targetPage = currentPage
+    if (Math.abs(velocity) > velocityThreshold) {
+      targetPage += velocity > 0 ? 1 : -1
+    }
+    
+    // Single page limit (keep existing feature)
+    const originPage = state?.startPage ?? currentPage
+    if (!this.scrolled) {
+      const delta = targetPage - originPage
+      if (delta > 1) targetPage = originPage + 1
+      else if (delta < -1) targetPage = originPage - 1
+    }
+    
+    // Boundary limits
+    const firstPage = this.#adjacentIndex(-1) == null ? 1 : 0
+    const lastPage = this.#adjacentIndex(1) == null ? pages - 2 : pages - 1
+    targetPage = Math.max(firstPage, Math.min(lastPage, targetPage))
+    
+    // Calculate animation duration based on distance
+    const targetOffset = targetPage * size
+    const distance = Math.abs(targetOffset - currentOffset)
+    const duration = Math.max(200, Math.min(300, 250 * (distance / (size || 1))))
+
+    this.#isSnapping = true
+    
+    return this.#scrollToPage(targetPage, 'snap', { animate: true, duration })
+      .then(() => {
+        // Handle chapter boundaries (keep existing feature)
+        const dir = targetPage <= 0 ? -1 : targetPage >= pages - 1 ? 1 : null
+        const index = dir == null ? null : this.#adjacentIndex(dir)
+        if (index != null) return this.#goTo({
+          index,
+          anchor: dir < 0 ? () => 1 : () => 0,
+        })
+      })
+      .finally(() => {
+        this.#isSnapping = false
+        // Restore overflow after snap is complete
+        element.style[overflowProp] = prevOverflow
+      })
+  }
+  #onTouchStart(e) {
+    const touch = e.changedTouches[0]
+    if (!touch || !e.touches.length) return
+    if (e.touches.length > 1 && this.#touchState) {
+      this.#touchState.pinched = true
+      return
+    }
+    const scrollProp = this.scrollProp
+    this.#touchState = {
+      x: touch?.screenX, y: touch?.screenY,
+      t: e.timeStamp,
+      vx: 0, vy: 0,
+      pinched: e.touches.length > 1 || (globalThis.visualViewport?.scale ?? 1) > 1,
+      cancelled: this.mobileTouchPaging && (this.#locked || this.#isSnapping ||
+        this.#selectionAtPointerDown || !!e.target?.ownerDocument?.getSelection()?.toString()),
+      startedAt: e.timeStamp,
+      direction: 'none',
+      startTouch: {
+        x: e.touches[0].screenX,
+        y: e.touches[0].screenY,
+      },
+      delta: { x: 0, y: 0 },
+      startScroll: this.#container[scrollProp],
+      startPage: this.page,
+      lockedOffset: null,
+      axis: scrollProp,
+    }
+    this.#selectionAtPointerDown = false
+    if (this.tapOnlyPageTurn) return
+    this.dispatchEvent(new CustomEvent('doctouchstart', {
+      detail: {
+        touch: e.changedTouches[0],
+        touchState: this.#touchState,
+      },
+      bubbles: true,
+      composed: true
+    }))
+  }
+  #onTouchMove(e) {
+    if (window.getSelection()?.toString() || e.target?.ownerDocument?.getSelection()?.toString()) {
+      if (this.#touchState) this.#touchState.cancelled = true
+      return
+    }
+
+    const touch = e.changedTouches[0]
+    const state = this.#touchState
+    if (!state) return
+    if (e.touches.length > 1 || (globalThis.visualViewport?.scale ?? 1) > 1)
+      state.pinched = true
+    if (state.pinched || state.cancelled || !touch) return
+
+    const deltaX = touch.screenX - state.startTouch.x
+    const deltaY = touch.screenY - state.startTouch.y
+
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    state.delta.x = deltaX
+    state.delta.y = deltaY
+
+    if (this.tapOnlyPageTurn) {
+      if (Math.max(absDeltaX, absDeltaY) >= 8 && e.cancelable) e.preventDefault()
+      return
+    }
+
+
+
+    const threshold = this.mobileTouchPaging ? 12 : 5
+
+    const notHorizontal = state.direction === 'horizontal' && absDeltaY > absDeltaX;
+    const notVertical = state.direction === 'vertical' && absDeltaX > absDeltaY;
+
+    if (state.direction !== 'none' || (notHorizontal && notVertical)) {
+      if (absDeltaX < threshold && absDeltaY < threshold) return;
+    }
+
+    if ((absDeltaX > threshold || absDeltaY > threshold) && state.direction === 'none') {
+      if (absDeltaX > absDeltaY * (this.mobileTouchPaging ? 1.3 : 1)) {
+        state.direction = 'horizontal'
+      } else if (absDeltaY > absDeltaX * (this.mobileTouchPaging ? 1.3 : 1)) {
+        state.direction = 'vertical'
+        if (this.scrollProp === 'scrollLeft' && state.lockedOffset == null)
+          state.lockedOffset = state.startScroll ?? this.#container.scrollLeft
+      }
+    }
+
+    const axisProp = this.scrollProp
+    state.axis = axisProp
+    const horizontalAxis = axisProp === 'scrollLeft'
+    const verticalAxis = axisProp === 'scrollTop'
+    const horizontalDrag = state.direction === 'horizontal'
+    const verticalDrag = state.direction === 'vertical'
+
+    const forwarded = new CustomEvent('doctouchmove', {
+      detail: {
+        touch,
+        touchState: state,
+      },
+      preventDefault: () => e.preventDefault(),
+      bubbles: true,
+      composed: true
+    })
+    this.dispatchEvent(forwarded)
+
+    if (this.mobileTouchPaging) {
+      // Do not cancel an ordinary tap/long press, or selection handles. Once
+      // clearly moving, suppress native drag and its synthetic click.
+      if (Math.max(absDeltaX, absDeltaY) >= 12 && e.cancelable) e.preventDefault()
+      return
+    }
+
+    if (state.pinched) return
+    state.pinched = globalThis.visualViewport.scale > 1
+    if (state.pinched) return
+
+    if (e.touches.length > 1) {
+      if (this.#touchScrolled) e.preventDefault()
+      return
+    }
+
+    const dt = e.timeStamp - state.t || 16.7
+    const stepX = state.x - touch.screenX
+    const stepY = state.y - touch.screenY
+    state.x = touch.screenX
+    state.y = touch.screenY
+    state.t = e.timeStamp
+    state.vx = stepX / dt
+    state.vy = stepY / dt
+
+    if (this.scrolled) return
+
+    if (verticalDrag && horizontalAxis) {
+      e.preventDefault()
+      // Lock horizontal position during vertical drag (direction locking)
+      if (state.lockedOffset == null)
+        state.lockedOffset = state.startScroll ?? this.#container.scrollLeft
+      this.#container.scrollLeft = state.lockedOffset
+      return
+    }
+
+    if (verticalDrag && verticalAxis) {
+      this.#touchScrolled = true
+      return
+    }
+
+    if (horizontalDrag && horizontalAxis) {
+      this.#touchScrolled = true
+      // rely on native scrolling for horizontal paging
+    }
+  }
+  #onTouchEnd(e) {
+    const state = this.#touchState
+    if (!state) return
+    if (e.touches.length) { state.pinched = true; return }
+    const touch = e.changedTouches[0]
+    if (touch) {
+      state.delta.x = touch.screenX - state.startTouch.x
+      state.delta.y = touch.screenY - state.startTouch.y
+    }
+    if (e.target?.ownerDocument?.getSelection()?.toString() || window.getSelection()?.toString())
+      state.cancelled = true
+    if (this.tapOnlyPageTurn) {
+      this.#touchScrolled = false
+      this.#touchState = null
+      const { x: dx, y: dy } = state.delta
+      if (Math.max(Math.abs(dx), Math.abs(dy)) >= 8 || state.cancelled || state.pinched) {
+        this.#suppressTouchClickUntil = Date.now() + 400
+        if (e.cancelable) e.preventDefault()
+      }
+      return
+    }
+    this.dispatchEvent(new CustomEvent('doctouchend', {
+      detail: {
+        touch: e.changedTouches[0],
+        touchState: state,
+      },
+      bubbles: true,
+      composed: true
+    }))
+
+    this.#touchScrolled = false
+    if (this.mobileTouchPaging) {
+      this.#touchState = null
+      const { x: dx, y: dy } = state.delta
+      if (Math.max(Math.abs(dx), Math.abs(dy)) >= 12 && !state.cancelled && !state.pinched) {
+        this.#suppressTouchClickUntil = Date.now() + 400
+        if (e.cancelable) e.preventDefault()
+      }
+      const direction = touchPageDirection({ dx, dy,
+        duration: e.timeStamp - state.startedAt, size: this.size,
+        vertical: this.scrollProp === 'scrollTop', rtl: this.#rtl,
+        cancelled: state.cancelled || state.pinched || this.#locked || this.#isSnapping ||
+          (state.direction !== 'none' && state.direction !==
+            (this.scrollProp === 'scrollTop' ? 'vertical' : 'horizontal')) })
+      if (direction) void this.#turnPage(direction).catch(error => console.error(error))
+      return
+    }
+    if (this.scrolled || state.cancelled || state.pinched) {
+      this.#touchState = null
+      return
+    }
+
+    const verticalLocked = state?.direction === 'vertical'
+      && state.axis === 'scrollLeft'
+      && state.lockedOffset != null
+
+    if (verticalLocked) {
+      // Restore original horizontal position and skip snapping to avoid accidental page turns
+      this.#container.scrollLeft = state.lockedOffset
+      this.#touchState = null
+      if (this.#pendingRelocate) {
+        const detail = this.#pendingRelocate
+        this.#pendingRelocate = null
+        this.dispatchEvent(new CustomEvent('relocate', { detail }))
+      }
+      return
+    }
+
+
+    // XXX: Firefox seems to report scale as 1... sometimes...?
+    // at this point I'm basically throwing `requestAnimationFrame` at
+    // anything that doesn't work
+    requestAnimationFrame(() => {
+      if (globalThis.visualViewport.scale === 1 && state)
+        Promise.resolve(this.snap(state.vx, state.vy, state))
+          .finally(() => { this.#touchState = null })
+      else this.#touchState = null
+    })
+  }
+  #onTouchCancel(e) {
+    if (this.#touchState) this.#touchState.cancelled = true
+    this.#onTouchEnd({ ...e, target: e.target, touches: [],
+      changedTouches: e.changedTouches, timeStamp: e.timeStamp, cancelable: false })
+  }
+  // allows one to process rects as if they were LTR and horizontal
+  #getRectMapper() {
+    if (this.scrolled) {
+      const size = this.viewSize
+      const margin = this.#margin
+      return this.#vertical
+        ? ({ left, right }) =>
+          ({ left: size - right - margin, right: size - left - margin })
+        : ({ top, bottom }) => ({ left: top + margin, right: bottom + margin })
+    }
+    const pxSize = this.pages * this.size
+    return this.#rtl
+      ? ({ left, right }) =>
+        ({ left: pxSize - right, right: pxSize - left })
+      : this.#vertical
+        ? ({ top, bottom }) => ({ left: top, right: bottom })
+        : f => f
+  }
+  async #scrollToRect(rect, reason) {
+    if (this.scrolled) {
+      const offset = this.#getRectMapper()(rect).left - this.#margin
+      return this.#scrollTo(offset, reason)
+    }
+    const mappedRect = this.#getRectMapper()(rect)
+    const left = mappedRect.left
+    const pageIndex = Math.floor(left / this.size)
+    const pageStart = pageIndex * this.size
+    const pageEnd = pageStart + this.size
+    const nudgedLeft = Math.min(left + this.#margin / 2, pageEnd - 1)
+    const normalizedLeft = Math.max(pageStart, nudgedLeft)
+    return this.#scrollToPage(Math.floor(normalizedLeft / this.size) + (this.#rtl ? -1 : 1), reason)
+  }
+  async #scrollTo(offset, reason, smooth) {
+    clearTimeout(this.#lineSettleTimer)
+    const element = this.#container
+    const { scrollProp, size } = this
+    if (!Number.isFinite(offset)) return
+    // An anchor of 1 or an 80%-screen step must not scroll the final screen
+    // beyond the content. Use unsigned logical offsets before vertical-rl.
+    if (this.scrolled) offset = Math.max(0, Math.min(
+      Math.max(0, this.viewSize - size), offset))
+    if (this.scrolled && reason === 'page' && !this.#vertical &&
+        offset > 0 && offset < this.viewSize - size)
+      offset = this.#alignScrollTarget(offset, this.start)
+    this.#ignoreNativeScroll = true
+    
+    const opts = typeof smooth === 'object' ? smooth ?? {} : {}
+    const shouldAnimate = opts.animate ?? (reason === 'snap' || smooth === true)
+    const easing = opts.easing ?? easeOutSine
+    
+    const finish = () => {
+      this.#afterScroll(reason)
+      this.#ignoreNativeScroll = false
+    }
+
+    // FIXME: vertical-rl only, not -lr
+    if (this.scrolled && this.#vertical) offset = -offset
+
+    // If already at target position
+    if (Math.abs(element[scrollProp] - offset) < 1) {
+      finish()
+      return
+    }
+
+    const useAnimation = shouldAnimate && this.hasAttribute('animated')
+
+    if (useAnimation) {
+      const distance = Math.abs(element[scrollProp] - offset)
+      const duration = opts.duration ?? Math.max(200, Math.min(300, 250 * (distance / (size || 1))))
+
+      this.#justAnchored = true
+
+      // Horizontal pages are already laid out. Move their layer on the compositor
+      // and commit scrollLeft once, rather than repainting scroll offsets per frame.
+      const view = this.#view
+      const layoutRevision = view?.layoutRevision
+      const pageDelta = reason === 'page' && !this.scrolled
+        ? Math.round(Math.abs(offset) / size) - this.page : 0
+      let animation
+      const transition = !this.scrolled && !this.#vertical && scrollProp === 'scrollLeft' &&
+          this.#view?.element?.animate && typeof Animation !== 'undefined' &&
+          'finished' in Animation.prototype && easing === easeOutSine
+        ? (animation = this.#view.element.animate([
+          { transform: 'translate3d(0,0,0)' },
+          { transform: `translate3d(${element[scrollProp] - offset}px,0,0)` },
+        ], { duration, easing: 'cubic-bezier(.39,.575,.565,1)', fill: 'forwards' })).finished
+        : animate(
+        element[scrollProp],
+        offset,
+        duration,
+        easing,
+        x => element[scrollProp] = x,
+      )
+      return transition.then(() => {
+        // Ensure exact position
+        element[scrollProp] = offset
+        animation?.cancel()
+        finish()
+      }).catch(error => {
+        animation?.cancel()
+        this.#ignoreNativeScroll = false
+        if (error?.name === 'AbortError' && animation && pageDelta &&
+            !this.#destroyed && !this.#preparingView && view === this.#view &&
+            view.layoutRevision !== layoutRevision && !this.scrolled &&
+            this.scrollProp === scrollProp) {
+          // Relayout restored the reading anchor. Turn from its new page.
+          const page = this.page + pageDelta
+          if (page <= 0 || page >= this.pages - 1) return true
+          return this.#scrollToPage(page, reason, { animate: false })
+        }
+      })
+    } else {
+      element[scrollProp] = offset
+      finish()
+    }
+  }
+  async #scrollToPage(page, reason, smooth) {
+    if (!Number.isFinite(page) || this.pages < 3) return
+    const firstPage = this.#adjacentIndex(-1) == null ? 1 : 0
+    const lastPage = this.#adjacentIndex(1) == null ? this.pages - 2 : this.pages - 1
+    page = Math.max(firstPage, Math.min(lastPage, page))
+    const offset = this.size * (this.#rtl ? -page : page)
+    return this.#scrollTo(offset, reason, smooth)
+  }
+  async scrollToAnchor(anchor, select, reason = 'anchor') {
+    if (this.#continuous) {
+      const doc = anchor?.startContainer?.ownerDocument ?? anchor?.ownerDocument
+      const entry = doc ? [...this.#continuous.entries.values()].find(e => e.view.document === doc)
+        : this.#continuous.current
+      if (!entry) return
+      this.#continuous.select(entry)
+      this.#anchor = anchor
+      const rect = uncollapse(anchor)?.getBoundingClientRect?.()
+      const offset = this.#continuous.top(entry) + (rect ? rect.top + this.#margin
+        : Math.max(0, Math.min(1, Number(anchor) || 0)) * Math.max(0,
+          entry.view.element.getBoundingClientRect().height - this.size))
+      this.#container.scrollTop = offset
+      if (select) this.#selectAnchor()
+      this.#continuous.remember()
+      this.#afterScroll(reason)
+      return
+    }
+    this.#anchor = anchor
+    this.#anchorTop = null
+    const rects = uncollapse(anchor)?.getClientRects?.()
+    // if anchor is an element or a range
+    if (rects) {
+      // when the start of the range is immediately after a hyphen in the
+      // previous column, there is an extra zero width rect in that column
+      const rect = Array.from(rects)
+        .find(r => r.width > 0 && r.height > 0) || rects[0]
+      if (!rect) return
+      await this.#scrollToRect(rect, reason)
+      if (select) this.#selectAnchor()
+      return
+    }
+    // if anchor is a fraction
+    if (this.scrolled) {
+      await this.#scrollTo(anchor * this.viewSize, reason)
+      return
+    }
+    const { pages } = this
+    if (!pages) return
+    const textPages = pages - 2
+    const newPage = Math.round(anchor * (textPages - 1))
+    await this.#scrollToPage(newPage + 1, reason)
+  }
+  #selectAnchor() {
+    const { defaultView } = this.#view.document
+    if (this.#anchor.startContainer) {
+      const sel = defaultView.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(this.#anchor)
+    }
+  }
+  #getVisibleRange() {
+    if (this.scrolled) return getVisibleRange(this.#view.document,
+      this.start + this.#margin, this.end - this.#margin, this.#getRectMapper())
+    const size = this.#rtl ? -this.size : this.size
+    return getVisibleRange(this.#view.document,
+      this.start - size, this.end - size, this.#getRectMapper())
+  }
+  async forEachTranslationPrefetchRange(pages, addRange, signal, prepareDocument) {
+    if (!Number.isInteger(pages) || pages < 1 || !this.#view) return
+    const original = this.#view, continuous = this.#continuous, scrolled = this.scrolled
+    const originalIndex = this.#index
+    const active = () => !signal?.aborted && !this.#destroyed && !this.#preparingView &&
+      this.#view === original && this.#index === originalIndex && this.#continuous === continuous &&
+      this.scrolled === scrolled
+    const { width, height } = this.#container.getBoundingClientRect()
+    if (!active() || width <= 0 || height <= 0) return
+
+    let remaining = Math.min(pages, 5)
+    let index = originalIndex
+    const viewportEnd = this.end
+    const consume = (range, used) => {
+      if (range) addRange(range, index)
+      remaining -= used
+    }
+    if (!scrolled) {
+      const available = Math.max(0, this.pages - 2 - this.page)
+      consume(this.getTranslationPrefetchRange(remaining), Math.min(available, remaining))
+      index++
+    }
+    for (; active() && remaining > .00001 && index < this.sections.length; index++) {
+      const section = this.sections[index]
+      if (!section?.load || section.linear === 'no') continue
+      const entry = continuous?.entries.get(index)
+      const laidOut = entry?.ready && !entry.detached
+      const view = laidOut && entry.activated ? entry.view : !continuous && index === originalIndex ? original : null
+      const offset = laidOut ? viewportEnd - continuous.top(entry)
+        : view ? viewportEnd - this.#margin : 0
+      if (view) {
+        const direction = getDirection(view.document)
+        const result = this.#measureTranslationRange(view, direction,
+          this.#measureLayout(direction.vertical, width, height), remaining, offset)
+        consume(result.range, result.used)
+        continue
+      }
+      const used = await this.#scanTranslationChapter(section, { width, height, remaining,
+        offset, active, signal, prepareDocument, addRange: range => consume(range, 0) })
+      // Without the missing chapter's geometry, later chapters cannot be
+      // proven to fall within the requested look-ahead.
+      if (used == null) break
+      remaining -= used
+    }
+  }
+  #measureTranslationRange(view, { vertical, rtl }, layout, remaining, offset = 0) {
+    const doc = view.document
+    if (layout.flow === 'scrolled') {
+      const size = vertical ? layout.width : layout.height
+      const extent = view.element.getBoundingClientRect()[vertical ? 'width' : 'height']
+      const start = Math.max(0, offset), end = Math.min(start + size * remaining, extent)
+      if (end <= start) return { used: 0 }
+      const margin = layout.margin
+      const mapRect = vertical
+        ? ({ left, right }) => ({ left: extent - right - margin, right: extent - left - margin })
+        : ({ top, bottom }) => ({ left: top + margin, right: bottom + margin })
+      return { range: getVisibleRange(doc, start, end - .001, mapRect), used: (end - start) / size }
+    }
+    const size = vertical ? layout.height : layout.width
+    const extent = view.element.getBoundingClientRect()[vertical ? 'height' : 'width']
+    const used = Math.min(remaining, Math.max(0, Math.round(extent / size) - 2))
+    if (!used) return { used }
+    const leading = rtl ? -size : size
+    const mapRect = rtl ? ({ left, right }) => ({ left: extent - right, right: extent - left })
+      : vertical ? ({ top, bottom }) => ({ left: top, right: bottom }) : rect => rect
+    return { range: getVisibleRange(doc, size - leading, (used + 1) * size - leading - .001, mapRect), used }
+  }
+  async #scanTranslationChapter(section, { width, height, remaining, offset, active, signal, prepareDocument, addRange }) {
+    if (!section.loadImageDocument) return null
+    let lease, snapshot, view, host, cancel
+    try {
+      // Use the independent resource lease so a foreground chapter eviction
+      // cannot revoke this document's URLs or be delayed by its font loading.
+      lease = await section.loadImageDocument()
+      if (!active()) return null
+      snapshot = await translationSnapshot(lease.src, signal)
+      if (!active()) return null
+      host = document.createElement('div')
+      host.setAttribute('aria-hidden', 'true')
+      host.inert = true
+      Object.assign(host.style, { position: 'fixed', left: '-100000px', top: '0',
+        width: `${width}px`, height: `${height}px`, overflow: 'hidden', pointerEvents: 'none' })
+      view = new View({ allowAutoplay: false, allowBookScripts: false, onExpand: () => {} })
+      view.element.style.contentVisibility = 'visible'
+      host.append(view.element)
+      document.body.append(host)
+      cancel = () => view.cancelLoad()
+      signal?.addEventListener('abort', cancel, { once: true })
+      let layout, direction
+      await view.load(snapshot, doc => {
+        this.#styleDocument(doc)
+        prepareDocument?.(doc)
+      }, value => {
+        direction = value
+        host.dir = (this.scrolled ? direction.vertical : direction.rtl) ? 'rtl' : 'ltr'
+        layout = this.#measureLayout(direction.vertical, width, height)
+        return layout
+      })
+      if (!active()) return null
+      const { range, used } = this.#measureTranslationRange(view, direction, layout, remaining, offset)
+      if (range) addRange(range)
+      return used
+    } catch (error) {
+      if (active()) console.warn('Could not measure chapter for translation prefetch:', error?.name)
+      return null
+    } finally {
+      if (cancel) signal?.removeEventListener('abort', cancel)
+      view?.destroy()
+      host?.remove()
+      if (snapshot) URL.revokeObjectURL(snapshot)
+      lease?.release()
+    }
+  }
+  getTranslationPrefetchRange(pages) {
+    if (!Number.isInteger(pages) || pages < 1 || this.#preparingView || this.#destroyed) return null
+    const size = this.size
+    if (!(size > 0)) return null
+    const entry = this.#continuous?.current
+    const view = entry?.view ?? this.#view
+    if (!view?.document?.body) return null
+    const limit = Math.min(pages, 5)
+    if (this.scrolled) {
+      const origin = entry ? this.#continuous.top(entry) : 0
+      const start = Math.max(0, this.end - origin - this.#margin)
+      const end = Math.min(start + size * limit, view.element.getBoundingClientRect()[this.sideProp])
+      if (end <= start) return null
+      const mapRect = entry ? ({ top, bottom }) => ({ left: top, right: bottom }) : this.#getRectMapper()
+      return getVisibleRange(view.document, start, end - .001, mapRect)
+    }
+    const first = this.page + 1, last = Math.min(first + limit - 1, this.pages - 2)
+    if (last < first) return null
+    const leading = this.#rtl ? -size : size
+    return getVisibleRange(view.document, first * size - leading,
+      (last + 1) * size - leading - .001, this.#getRectMapper())
+  }
+  #afterScroll(reason, flush = false) {
+    if (reason !== 'scroll' || flush) {
+      clearTimeout(this.#scrollRelocateTimer)
+      this.#scrollRelocateTimer = null
+    }
+    if (this.#preparingView || this.#destroyed || !this.#view) return
+    if (reason === 'scroll' && (this.#ignoreNativeScroll || this.#autoScrolling)) return
+    if (reason === 'scroll') this.#continuous?.track()
+    // Keep chapter warming responsive; avoid per-frame text/CFI scans and Flutter rebuilds on Android/ArkWeb.
+    if (reason === 'scroll' && this.scrolled && this.#coalesceScrollProgress && !flush) {
+      const delay = 100 - (performance.now() - this.#lastScrollRelocate)
+      if (delay > 0) {
+        if (this.#scrollRelocateTimer == null)
+          this.#scrollRelocateTimer = setTimeout(() => {
+            this.#scrollRelocateTimer = null
+            this.#afterScroll('scroll')
+          }, delay)
+        return
+      }
+    }
+    clearTimeout(this.#scrollRelocateTimer)
+    this.#scrollRelocateTimer = null
+    this.#lastScrollRelocate = performance.now()
+    if (this.#continuous) {
+      const entry = this.#continuous.current
+      if (!entry) return
+      const start = this.#container.scrollTop - this.#continuous.top(entry)
+      const height = entry.view.element.getBoundingClientRect().height
+      const range = getVisibleRange(entry.view.document, Math.max(0, start - this.#margin),
+        Math.min(height, start + this.size - this.#margin),
+        ({ top, bottom }) => ({ left: top, right: bottom }))
+      this.#anchor = range
+      this.#continuous.rememberText(range)
+      this.dispatchEvent(new CustomEvent('relocate', { detail: { reason, range,
+        index: entry.index, fraction: Math.max(0, Math.min(1, start / Math.max(1, height))),
+        size: this.size / Math.max(1, height),
+        readingAction: this.#readingActions.isAction(reason) } }))
+      return
+    }
+    const range = this.#getVisibleRange()
+    // don't set new anchor if relocation was to scroll to anchor
+    if (reason !== 'anchor' && reason !== 'navigation') {
+      this.#anchor = range
+      this.#anchorTop = range?.getBoundingClientRect?.().top ?? null
+    }
+    else this.#justAnchored = true
+
+    const index = this.#index
+    const detail = { reason, range, index,
+      readingAction: this.#readingActions.isAction(reason) }
+    if (this.scrolled) {
+      detail.fraction = this.start / this.viewSize
+      detail.size = this.size / this.viewSize
+    }
+    else if (this.pages > 0) {
+      const { page, pages } = this
+      // this.#header.style.visibility = page > 1 ? 'visible' : 'hidden'
+      detail.fraction = (page - 1) / (pages - 2)
+      detail.size = 1 / (pages - 2)
+    }
+    if (!this.scrolled && reason === 'scroll' && (this.#touchState || this.#touchScrolled)) {
+      this.#pendingRelocate = detail
+      return
+    }
+
+    this.#pendingRelocate = null
+    this.dispatchEvent(new CustomEvent('relocate', { detail }))
+  }
+  #handleScrollBoundaries() {
+    // if (!this.scrolled || this.#locked) return
+    
+    // // Only trigger transitions when very close to boundaries (95% through)
+    // const threshold = Math.min(50, this.size * 0.05) // Small threshold or 5% of size
+    // const atEnd = this.viewSize - this.end <= threshold
+    // const atStart = this.start <= threshold
+    
+    // // Only auto-load if we're actually at the boundary, not just approaching
+    // if (atEnd && !this.#loadingNext) {
+    //   const nextIndex = this.#adjacentIndex(1)
+    //   if (nextIndex != null) {
+    //     this.#loadingNext = true
+    //     // Small delay to ensure scroll has finished
+    //     setTimeout(() => {
+    //       this.#goTo({
+    //         index: nextIndex,
+    //         anchor: () => 0,
+    //       }).then(() => {
+    //         this.#loadingNext = false
+    //       }).catch(() => {
+    //         this.#loadingNext = false
+    //       })
+    //     }, 200)
+    //   }
+    // }
+    
+    // if (atStart && !this.#loadingPrev) {
+    //   const prevIndex = this.#adjacentIndex(-1)
+    //   if (prevIndex != null) {
+    //     this.#loadingPrev = true
+    //     setTimeout(() => {
+    //       this.#goTo({
+    //         index: prevIndex,
+    //         anchor: () => 1,
+    //       }).then(() => {
+    //         this.#loadingPrev = false
+    //       }).catch(() => {
+    //         this.#loadingPrev = false
+    //       })
+    //     }, 200)
+    //   }
+    // }
+  }
+  async #display(promise) {
+    const { index, src, anchor, onLoad, select } = await promise
+    if (this.#destroyed) return
+    const oldIndex = this.#index
+    const oldDirection = { vertical: this.#vertical, rtl: this.#rtl }
+    this.#index = index
+    if (src) {
+      this.#preparingView = true
+      this.#pendingRelocate = null
+      const oldView = this.#view
+      this.#retiringView = oldView
+      if (oldView) oldView.element.inert = true
+      const view = this.#createView()
+      const afterLoad = doc => {
+        if (doc.head) {
+          const $styleBefore = doc.createElement('style')
+          doc.head.prepend($styleBefore)
+          const $style = doc.createElement('style')
+          doc.head.append($style)
+          this.#styleMap.set(doc, [$styleBefore, $style])
+        }
+        onLoad?.({ doc, index })
+      }
+      const beforeRender = this.#beforeRender.bind(this)
+      this.#pendingViews.add(view)
+      try {
+        const loading = view.load(src, afterLoad, beforeRender)
+        if (this.#navigationWaiters.size) view.cancelLoad()
+        await loading
+      } catch (error) {
+        view.destroy()
+        view.element.remove()
+        if (error.name === 'ReaderChapterDocumentError') this.#sectionCache.invalidate(index)
+        this.#preparingView = false
+        this.#retiringView = null
+        if (!this.#destroyed) {
+          this.#view = oldView
+          this.#index = oldIndex
+          this.#vertical = oldDirection.vertical
+          this.#rtl = oldDirection.rtl
+          if (oldView) {
+            oldView.element.inert = false
+            onLoad?.({ doc: oldView.document, index: oldIndex })
+            this.render()
+          }
+        }
+        throw error
+      } finally { this.#pendingViews.delete(view) }
+      if (this.#destroyed) return
+      // Commit synchronously, with no animation through an empty sentinel page.
+      oldView?.destroy()
+      oldView?.element.remove()
+      this.#retiringView = null
+      Object.assign(view.element.style, {
+        position: 'relative', visibility: '', pointerEvents: '', left: '', top: '',
+        contentVisibility: 'auto',
+      })
+      this.#preparingView = false
+      this.dispatchEvent(new CustomEvent('create-overlayer', {
+        detail: {
+          doc: view.document, index,
+          attach: overlayer => view.overlayer = overlayer,
+        },
+      }))
+      this.#view = view
+    }
+    await this.scrollToAnchor((typeof anchor === 'function'
+      ? anchor(this.#view.document) : anchor) ?? 0, select, 'navigation')
+  }
+  #canGoToIndex(index) {
+    return Number.isInteger(index) && index >= 0 && index < this.sections.length
+  }
+  #styleDocument(doc) {
+    let pair = this.#styleMap.get(doc)
+    if (!pair && doc.head) {
+      pair = [doc.createElement('style'), doc.createElement('style')]
+      doc.head.prepend(pair[0]); doc.head.append(pair[1])
+      this.#styleMap.set(doc, pair)
+    }
+    if (pair) {
+      const before = Array.isArray(this.#styles) ? this.#styles[0] : ''
+      const after = Array.isArray(this.#styles) ? this.#styles[1] : this.#styles ?? ''
+      if (pair[0].textContent === before && pair[1].textContent === after) return false
+      clearReaderFontFallback(doc)
+      captureBookFontFamilies(doc, this.#styles, pair)
+      prepareReaderFontWeight(doc, this.#styles)
+      if (pair[0].textContent !== before) pair[0].textContent = before
+      if (pair[1].textContent !== after) pair[1].textContent = after
+      return true
+    }
+    return false
+  }
+  #ensureContinuous() {
+    if (this.#continuous) return
+    const retained = this.#view
+    const retainedIndex = this.#index
+    const retainedSrc = retained ? this.#sectionCache?.take(retainedIndex) : null
+    if (!retainedSrc) {
+      this.#view?.destroy()
+      this.#view?.element.remove()
+      this.#view = null
+    }
+    this.#sectionCache?.destroy()
+    this.#sectionCache = new SectionWindowCache(this.sections)
+    this.#continuous = new ContinuousSectionWindow({
+      container: this.#container, sections: this.sections,
+      alignScroll: (target, current) => this.#alignScrollTarget(target, current),
+      changed: () => this.#continuous?.track(),
+      create: async (index, src) => {
+        const window = this.#continuous
+        const view = new View({ container: this, allowAutoplay: false, onExpand: () => window?.resize() })
+        Object.assign(view.element.style, { position: 'absolute', visibility: 'hidden',
+          left: '0', top: '0', pointerEvents: 'none', contentVisibility: 'visible' })
+        this.#container.append(view.element)
+        this.#pendingViews.add(view)
+        try {
+          const loading = view.load(src, doc => this.#styleDocument(doc), ({ vertical, rtl }) => {
+            if (vertical) throw new Error('Continuous scroll requires horizontal writing')
+            return this.#beforeRender({ vertical, rtl })
+          })
+          if (this.#navigationWaiters.size) view.cancelLoad()
+          await loading
+          // Wheel events in a newly visible iframe do not bubble to the host.
+          // Record trusted input even before its first chapter activation.
+          for (const type of ['wheel', 'touchstart', 'touchmove'])
+            view.document.addEventListener(type, event => this.#readingActions.input(event),
+              { capture: true, passive: true })
+          for (const type of ['pointerdown', 'touchstart'])
+            view.document.addEventListener(type, () => {
+              const entry = window.entries.get(index)
+              if (entry) window.select(entry)
+            }, { capture: true, passive: true })
+          return view
+        } catch (error) { view.destroy(); view.element.remove(); throw error }
+        finally { this.#pendingViews.delete(view) }
+      },
+      activate: entry => {
+        this.#view = entry.view
+        this.#index = entry.index
+        const detail = { doc: entry.view.document, index: entry.index }
+        if (!entry.activated) {
+          this.dispatchEvent(new CustomEvent('load', { detail }))
+          this.dispatchEvent(new CustomEvent('create-overlayer', { detail: {
+            ...detail, attach: overlayer => entry.view.overlayer = overlayer,
+          } }))
+        }
+        // Restored cached chapters may have been hidden, resized or internally
+        // scrolled since their marks were last painted.
+        entry.view.overlayer?.redraw()
+        this.dispatchEvent(new CustomEvent('activate', { detail }))
+      },
+    })
+    if (retainedSrc) {
+      const entry = { index: retainedIndex, src: retainedSrc, view: retained, ready: true, activated: true }
+      this.#continuous.entries.set(retainedIndex, entry)
+      this.#continuous.current = entry
+      retained.element.style.order = String(retainedIndex)
+      const window = this.#continuous
+      retained.onExpand = () => window.resize()
+      window.remember()
+    }
+    this.dispatchEvent(new CustomEvent('continuous-start'))
+  }
+  async #goTo({ index, anchor, select }) {
+    const started = Date.now()
+    this.#lastNavigation = { index, anchor, select }
+    this.dispatchEvent(new CustomEvent('chapter-state', { detail: { state: 'loading' } }))
+    try {
+      const result = await this.#loadSection({ index, anchor, select })
+      this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
+        state: 'ready', durationMs: Math.max(0, Date.now() - started),
+      } }))
+      return result
+    } catch (error) {
+      const reason = error.message === 'Reader font loading failed' ? 'font'
+        : error.name === 'ReaderChapterDocumentError' ? 'document' : 'chapter'
+      if (error.name !== 'AbortError')
+        console.warn(`Reader chapter load failed: index=${index}, reason=${reason}`)
+      this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
+        state: error.name === 'AbortError' ? 'cancelled' : 'failed',
+        reason, index,
+        durationMs: Math.max(0, Date.now() - started),
+      } }))
+      throw error
+    }
+  }
+  async #loadSection({ index, anchor, select }) {
+    if (!this.#canGoToIndex(index) || !this.sections[index]) return
+    if (this.continuousEnabled) {
+      this.#ensureContinuous()
+      try {
+        return await this.#continuous.goTo(index, anchor, select,
+          (target, selected) => this.scrollToAnchor(target, selected, 'navigation'))
+      } catch (error) {
+        if (error.message !== 'Continuous scroll requires horizontal writing') throw error
+        this.#continuousDisabled = true
+        this.#continuous.destroy()
+        this.#continuous = null
+        this.#view = null
+        this.#index = -1
+      }
+    }
+    if (index === this.#index) await this.#display({ index, anchor, select })
+    else {
+      const onLoad = detail => {
+        this.setStyles(this.#styles)
+        this.dispatchEvent(new CustomEvent('load', { detail }))
+      }
+      const resourceStarted = Date.now()
+      await this.#display(this.#sectionCache.load(index)
+        .then(src => {
+          this.dispatchEvent(new CustomEvent('chapter-state', { detail: {
+            state: 'timing', stage: 'chapter_resource',
+            durationMs: Math.max(0, Date.now() - resourceStarted),
+          } }))
+          return { index, src, anchor, onLoad, select }
+        })
+        .catch(e => {
+          console.warn(e)
+          console.warn(new Error(`Failed to load section ${index}`))
+          throw e
+        }))
+    }
+    this.#sectionCache.setCurrent(index)
+  }
+  async goTo(target) {
+    const version = ++this.#navigationVersion
+    while (this.#locked && !this.#destroyed) {
+      // Wait for rollback before touching the retained view. A directory jump
+      // replaces a pending font wait instead of being silently discarded.
+      const idle = new Promise(resolve => this.#navigationWaiters.add(resolve))
+      for (const view of this.#pendingViews) view.cancelLoad()
+      await idle
+    }
+    if (this.#destroyed || version !== this.#navigationVersion) return false
+    this.#locked = true
+    try {
+      const resolved = await target
+      if (this.#canGoToIndex(resolved.index)) {
+        await this.#goTo(resolved)
+        return true
+      }
+      return false
+    } catch (error) {
+      if (error.name === 'AbortError') return false
+      throw error
+    } finally {
+      this.#unlockNavigation()
+    }
+  }
+  #unlockNavigation() {
+    this.#locked = false
+    for (const resolve of this.#navigationWaiters) resolve()
+    this.#navigationWaiters.clear()
+  }
+  retryNavigation() {
+    if (this.#lastNavigation) console.log(`Reader chapter retry: index=${this.#lastNavigation.index}`)
+    return this.#lastNavigation ? this.goTo(this.#lastNavigation) : Promise.resolve(false)
+  }
+  #scrollPrev(distance) {
+    if (!this.#view) return true
+    if (this.scrolled) {
+      if (this.start > 0) return this.#scrollTo(
+        Math.max(0, this.start - (distance ?? this.scrollPageStep)), 'page', { animate: true })
+      return true
+    }
+    if (this.atStart) return
+    const page = this.page - 1
+    if (page <= 0) return true
+    return this.#scrollToPage(page, 'page', { animate: true })
+  }
+  #scheduleLineSettle() {
+    clearTimeout(this.#lineSettleTimer)
+    if (this.getAttribute('scroll-auto-align') === 'false') return
+    if (!this.#needsLineSettle || !this.scrolled || this.#vertical || this.#destroyed) return
+    this.#lineSettleTimer = setTimeout(() => {
+      if (this.getAttribute('scroll-auto-align') === 'false') return
+      this.#lineSettleTimer = null
+      if (this.#destroyed || !this.scrolled || this.#vertical || this.#scrollPointerDown ||
+          this.#touchState || this.#locked || this.#ignoreNativeScroll ||
+          this.getContents().some(({ doc }) => doc.getSelection()?.toString())) return
+      const current = this.start
+      this.#needsLineSettle = false
+      if (current <= 0 || current >= this.viewSize - this.size) return
+      const target = this.#alignScrollTarget(current, current - this.#scrollDirection, true)
+      if (Math.abs(target - current) > .25) {
+        this.#settledAt = Math.max(0, Math.min(this.viewSize - this.size, target))
+        this.#scrollTo(target, 'line-snap', false)
+      }
+    }, 220)
+  }
+  #alignScrollTarget(target, current, settled = false) {
+    if (this.getAttribute('scroll-auto-align') === 'false') return target
+    if (!settled) target = this.scrollPageTarget(target, current)
+    const documents = this.#continuous
+      ? this.#continuous.ordered.map(entry => ({ doc: entry.view.document,
+        offset: this.#continuous.top(entry) + this.#margin }))
+      : [{ doc: this.#view?.document, offset: this.#margin }]
+    return lineAlignedOffset(documents, target, current, this.size, settled)
+  }
+  #scrollNext(distance) {
+    if (!this.#view) return true
+    if (this.scrolled) {
+      if (this.viewSize - this.end > 2) return this.#scrollTo(
+        Math.min(Math.max(0, this.viewSize - this.size), this.start + (distance ?? this.scrollPageStep)), 'page', { animate: true })
+      return true
+    }
+    if (this.atEnd) return
+    const page = this.page + 1
+    const pages = this.pages
+    if (page >= pages - 1) return true
+    return this.#scrollToPage(page, 'page', { animate: true })
+  }
+  get scrollPageStep() {
+    const percent = Number(this.getAttribute('scroll-page-percent') ?? 80)
+    return this.size * (Number.isFinite(percent) ? Math.max(80, Math.min(100, percent)) : 80) / 100
+  }
+  get atStart() {
+    return this.#adjacentIndex(-1) == null &&
+      (this.scrolled ? this.start <= 2 : this.page <= 1)
+  }
+  get atEnd() {
+    return this.#adjacentIndex(1) == null &&
+      (this.scrolled ? this.viewSize - this.end <= 2 : this.page >= this.pages - 2)
+  }
+  #adjacentIndex(dir) {
+    for (let index = this.#index + dir; this.#canGoToIndex(index); index += dir)
+      if (this.sections[index] && this.sections[index].linear !== 'no') return index
+  }
+  async #turnPage(dir, distance) {
+    if (this.#continuous) {
+      if (this.#locked) return
+      this.#locked = true
+      try {
+        await this.#continuous.scrollBy(dir * (distance ?? this.scrollPageStep))
+        this.#afterScroll('page')
+      } catch (error) {
+        if (error.name !== 'AbortError') throw error
+      } finally { this.#unlockNavigation() }
+      return
+    }
+    if (this.#locked) return
+    if (this.#view && (dir < 0 ? this.atStart : this.atEnd)) return
+    this.#locked = true
+    try {
+      const prev = dir === -1
+      const shouldGo = await (prev ? this.#scrollPrev(distance) : this.#scrollNext(distance))
+
+      const adjacent = this.#adjacentIndex(dir)
+      if (shouldGo && adjacent != null) await this.#goTo({
+        index: adjacent,
+        anchor: prev ? () => 1 : () => 0,
+      })
+    } catch (error) {
+      if (error.name !== 'AbortError') throw error
+    } finally {
+      this.#unlockNavigation()
+    }
+  }
+  prev(distance) {
+    return this.#turnPage(-1, distance)
+  }
+  next(distance) {
+    return this.#turnPage(1, distance)
+  }
+  prevSection() {
+    return this.goTo({ index: this.#adjacentIndex(-1) })
+  }
+  nextSection() {
+    return this.goTo({ index: this.#adjacentIndex(1) })
+  }
+  firstSection() {
+    const index = this.sections.findIndex(section => section.linear !== 'no')
+    return this.goTo({ index })
+  }
+  lastSection() {
+    const index = this.sections.findLastIndex(section => section.linear !== 'no')
+    return this.goTo({ index })
+  }
+  getContents() {
+    if (this.#continuous) {
+      const entries = [...this.#continuous.entries.values()].filter(e => e.ready)
+      entries.sort((a, b) => (b === this.#continuous.current) - (a === this.#continuous.current))
+      return entries.map(e => ({ index: e.index, doc: e.view.document, overlayer: e.view.overlayer }))
+    }
+    if (this.#view) return [{
+      index: this.#index,
+      overlayer: this.#view.overlayer,
+      doc: this.#view.document,
+    }]
+    return []
+  }
+  setStyles(styles, { paintOnly = false, fontColor } = {}) {
+    this.#styles = styles
+    const documents = [...this.getContents().map(({ doc }) => doc),
+      ...[...this.#pendingViews].map(view => view.document)]
+    for (const doc of documents) {
+      if (fontColor) doc?.documentElement?.style.setProperty('--modu-reader-font-color', fontColor)
+    }
+    // Replacing a sheet containing @font-face makes WebKit/Chromium hide text
+    // while reloading fonts, even when only its color declarations changed.
+    if (paintOnly) {
+      this.#applyBackground()
+      return
+    }
+    if (this.#continuous) {
+      let changed = false
+      for (const entry of this.#continuous.entries.values()) {
+        const view = entry.view
+        if (!this.#styleDocument(view.document)) continue
+        changed = true
+        waitForReaderFonts(view.document).then(ready => {
+          if (ready && this.#continuous?.entries.get(entry.index)?.view === view) view.expand()
+        })
+      }
+      if (changed) this.render()
+      return
+    }
+    const $$styles = this.#styleMap.get(this.#view?.document)
+    if (!$$styles) return
+    const [$beforeStyle, $style] = $$styles
+    const before = Array.isArray(styles) ? styles[0] : ''
+    const after = Array.isArray(styles) ? styles[1] : styles ?? ''
+    const changed = $beforeStyle.textContent !== before || $style.textContent !== after
+    if (changed) {
+      clearReaderFontFallback(this.#view.document)
+      captureBookFontFamilies(this.#view.document, styles, $$styles)
+      prepareReaderFontWeight(this.#view.document, styles)
+      if ($beforeStyle.textContent !== before) $beforeStyle.textContent = before
+      if ($style.textContent !== after) $style.textContent = after
+    }
+
+    this.#applyBackground()
+
+    // needed because the resize observer doesn't work in Firefox
+    const view = this.#view
+    // CSS can change writing direction without loading another chapter. Update
+    // both iframe and paginator axes together, retaining the current anchor.
+    if (!this.#preparingView && view?.refreshDirection().changed) this.render()
+    if (changed && !this.#preparingView && view?.document) waitForReaderFonts(view.document).then(ready => {
+      if (ready && this.#view === view && !this.#preparingView) this.render()
+    })
+  }
+  get writingMode() {
+    return this.#view?.writingMode
+  }
+  get isNavigating() { return this.#locked }
+  destroy() {
+    this.#destroyed = true
+    clearTimeout(this.#scrollRelocateTimer)
+    this.#scrollRelocateTimer = null
+    clearTimeout(this.#lineSettleTimer)
+    for (const view of this.#pendingViews) view.cancelLoad()
+    this.#unlockNavigation()
+    this.#columnRules?.destroy()
+    this.#scrollbar?.destroy()
+    this.#continuous?.destroy()
+    this.#continuous = null
+    this.#observer.disconnect()
+    this.#view?.destroy()
+    this.#retiringView?.destroy()
+    this.#retiringView?.element.remove()
+    this.#retiringView = null
+    this.#view = null
+    this.#sectionCache?.destroy()
+    this.#mediaQuery.removeEventListener('change', this.#mediaQueryListener)
+    if (this.#pendingScrollFrame) {
+      cancelAnimationFrame(this.#pendingScrollFrame)
+      this.#pendingScrollFrame = null
+    }
+    this.#pendingRelocate = null
+  }
+}
+
+customElements.define('foliate-paginator', Paginator)

@@ -1,0 +1,1011 @@
+import * as CFI from './epubcfi.js'
+import { TOCProgress, SectionProgress, getChapterLocation } from './progress.js'
+import { Overlayer } from './overlayer.js'
+import { textWalker } from './text-walker.js'
+import { Translator, TranslationMode } from './translator.js'
+import { imageFootnoteText } from './image-footnotes.js'
+import { repairSelfReferentialNotes } from './footnote-links.js'
+const { TTS } = await import('./tts.js')
+
+const SEARCH_PREFIX = 'foliate-search:'
+
+class History extends EventTarget {
+  #arr = []
+  #index = -1
+  pushState(x) {
+    const last = this.#arr[this.#index]
+    if (last === x || (typeof last?.fraction === 'number' && last.fraction === x?.fraction)) return
+    this.#arr[++this.#index] = x
+    this.#arr.length = this.#index + 1
+    this.dispatchEvent(new Event('index-change'))
+    this.dispatchEvent(new CustomEvent('pushstate', { detail: x }))
+  }
+  replaceState(x) {
+    const index = this.#index
+    if (index < 0) return this.clear(x)
+    this.#arr[index] = x
+  }
+  back() {
+    const index = this.#index
+    if (index <= 0) return
+    const detail = { state: this.#arr[index - 1] }
+    this.#index = index - 1
+    this.dispatchEvent(new CustomEvent('popstate', { detail }))
+    this.dispatchEvent(new Event('index-change'))
+  }
+  forward() {
+    const index = this.#index
+    if (index >= this.#arr.length - 1) return
+    const detail = { state: this.#arr[index + 1] }
+    this.#index = index + 1
+    this.dispatchEvent(new CustomEvent('popstate', { detail }))
+    this.dispatchEvent(new Event('index-change'))
+  }
+  get canGoBack() {
+    return this.#index > 0
+  }
+  get canGoForward() {
+    return this.#index < this.#arr.length - 1
+  }
+  clear(current) {
+    this.#arr = current == null ? [] : [current]
+    this.#index = this.#arr.length - 1
+    this.dispatchEvent(new Event('index-change'))
+  }
+}
+
+const languageInfo = lang => {
+  if (!lang) return {}
+  try {
+    const canonical = Intl.getCanonicalLocales(lang)[0] ?? 'en'
+    const locale = new Intl.Locale(canonical)
+    const isCJK = ['zh', 'ja', 'kr'].includes(locale.language)
+    const direction = (locale.getTextInfo?.() ?? locale.textInfo)?.direction
+    return { canonical, locale, isCJK, direction }
+  } catch (e) {
+    console.warn(e)
+    return {}
+  }
+}
+
+export class View extends HTMLElement {
+  #root = this.attachShadow({ mode: 'open' })
+  #sectionProgress
+  #tocProgress
+  #pageProgress
+  #searchResults = new Map()
+  #searchGeneration = 0
+  #index
+  isFixedLayout = false
+  lastLocation
+  history = new History()
+  #lastCfi = null
+  #lastChapterLocation = null
+  #translator = new Translator()
+  #translationPrefetchPages = 0
+  #translationPrefetchTimer
+  #translationPrefetchController
+  #translationPrefetchWork
+  constructor() {
+    super()
+    this.history.addEventListener('popstate', ({ detail }) => {
+      const resolved = this.resolveNavigation(detail.state)
+      this.renderer.goTo(resolved)
+    })
+  }
+  async open(book) {
+    this.book = book
+    this.language = languageInfo(book.metadata?.language)
+
+    if (book.splitTOCHref && book.getTOCFragment) {
+      const ids = book.sections.map(s => s.id)
+      this.#sectionProgress = new SectionProgress(book.sections, 1500, 1600)
+      const splitHref = book.splitTOCHref.bind(book)
+      const getFragment = book.getTOCFragment.bind(book)
+      this.#tocProgress = new TOCProgress()
+      await this.#tocProgress.init({
+        toc: book.toc ?? [], ids, splitHref, getFragment
+      })
+      this.#pageProgress = new TOCProgress()
+      await this.#pageProgress.init({
+        toc: book.pageList ?? [], ids, splitHref, getFragment
+      })
+    }
+
+    await this.#openRenderer(book)
+
+    if (book.sections.some(section => section.mediaOverlay)) {
+      book.media.activeClass ||= '-epub-media-overlay-active'
+      const activeClass = book.media.activeClass
+      this.mediaOverlay = book.getMediaOverlay()
+      let lastActive
+      this.mediaOverlay.addEventListener('highlight', e => {
+        const resolved = this.resolveNavigation(e.detail.text)
+        this.renderer.goTo(resolved)
+          .then(() => {
+            const { doc } = this.renderer.getContents()
+              .find(x => x.index === resolved.index)
+            const el = resolved.anchor(doc)
+            el.classList.add(activeClass)
+            lastActive = typeof WeakRef === 'function' ? new WeakRef(el) : { deref: () => el }
+          })
+      })
+      this.mediaOverlay.addEventListener('unhighlight', () => {
+        lastActive?.deref()?.classList?.remove(activeClass)
+        lastActive = null
+      })
+    }
+  }
+  async #openRenderer(book) {
+    this.isFixedLayout = book.rendition?.layout === 'pre-paginated'
+    if (this.isFixedLayout) {
+      await import('./fixed-layout.js')
+      this.renderer = document.createElement('foliate-fxl')
+    } else {
+      await import('./paginator.js')
+      this.renderer = document.createElement('foliate-paginator')
+    }
+    this.renderer.setAttribute('exportparts', 'head,foot,filter')
+    // The renderer survives chapter loads. Bind its background/margin click
+    // once, not once per visible document (which multiplies page turns).
+    this.renderer.addEventListener('click', this.#handleRendererClick)
+    this.renderer.addEventListener('load', e => this.#onLoad(e.detail))
+    this.renderer.addEventListener('activate', e => this.#emit('activate', e.detail))
+    this.renderer.addEventListener('continuous-start', () => {
+      const speaking = this.renderer.getContents().find(x => x.doc === this.tts?.doc)
+      if (speaking) this.renderer.pinTtsSection(speaking.index)
+    })
+    this.renderer.addEventListener('relocate', e => {
+      if (this.#switchingRenderer) this.#pendingRelocate = e.detail
+      else this.#onRelocate(e.detail)
+    })
+    this.renderer.addEventListener('chapter-state', e => this.#emit('chapter-state', e.detail))
+    this.renderer.addEventListener('document-menu', () => this.#emit('document-menu'))
+    this.renderer.addEventListener('create-overlayer', e =>
+      e.detail.attach(this.#createOverlayer(e.detail)))
+    this.renderer.open(book)
+    this.#root.append(this.renderer)
+
+  }
+  #imageBook
+  #switchingRenderer = false
+  #pendingRelocate
+  #rendererSwitchGeneration = 0
+  get imageReading() { return !!this.#imageBook }
+  async setImageReading(enabled, settings = {}, configure = () => {}) {
+    if (this.#switchingRenderer || !(this.book.resources || this.book.imageDocumentSource)) return false
+    if (enabled === this.imageReading) {
+      if (enabled) {
+        if (settings.pageViews) this.renderer.setPdfPageViews?.(settings.pageViews)
+        if (settings.view) await this.renderer.setPdfView(settings.view)
+        return this.renderer.setPdfLayout(settings.layout, true, settings.position)
+      }
+      return true
+    }
+    this.#switchingRenderer = true
+    this.#cancelTranslationPrefetch()
+    const generation = ++this.#rendererSwitchGeneration
+    const checkActive = () => { if (generation !== this.#rendererSwitchGeneration) throw new DOMException('Reader closed', 'AbortError') }
+    this.#pendingRelocate = null
+    const previous = this.renderer, oldFixed = this.isFixedLayout, oldBook = this.#imageBook
+    let nextBook
+    try {
+      if (enabled) {
+        const { createEpubImageBook } = await import('./epub-image-book.js')
+        checkActive()
+        nextBook = createEpubImageBook(this.book)
+      }
+      await this.#openRenderer(nextBook ?? this.book)
+      checkActive()
+      this.renderer.readerActive = previous.readerActive ?? false
+      this.renderer.style.position = 'absolute'
+      this.renderer.style.inset = '0'
+      this.renderer.style.visibility = 'hidden'
+      configure()
+      if (enabled) {
+        if (settings.pageViews) this.renderer.setPdfPageViews?.(settings.pageViews)
+        if (settings.view) await this.renderer.setPdfView(settings.view)
+        await this.renderer.setPdfLayout(settings.layout, true, settings.position)
+      }
+      const cfi = this.lastLocation?.cfi ?? settings.cfi
+      const target = cfi ? this.resolveNavigation(cfi) : {index:0}
+      if (await this.renderer.goTo(target ?? {index:0}) === false) throw new Error('Image layout failed')
+      checkActive()
+      previous.destroy(); previous.remove(); oldBook?.disposeImageBook()
+      this.#imageBook = nextBook
+      this.renderer.style.visibility = ''
+      this.#switchingRenderer = false
+      if (this.#pendingRelocate) this.#onRelocate({...this.#pendingRelocate,reason:'layout'})
+      return true
+    } catch (error) {
+      console.warn('Image reading layout could not be applied', error)
+      if (this.renderer !== previous) { this.renderer?.destroy(); this.renderer?.remove() }
+      nextBook?.disposeImageBook()
+      this.renderer = previous; this.isFixedLayout = oldFixed
+      if (generation === this.#rendererSwitchGeneration) configure()
+      return false
+    } finally {
+      this.#switchingRenderer = false
+      this.#pendingRelocate = null
+      if (this.#translationPrefetchPages) this.#scheduleTranslationPrefetch()
+    }
+  }
+  close() {
+    this.#rendererSwitchGeneration++
+    this.#translationPrefetchPages = 0
+    this.#cancelTranslationPrefetch()
+    // A superseded popup can close while open() is still importing its renderer.
+    if (this.renderer) this.initTTS(true)
+    this.clearSearch()
+    this.renderer?.destroy()
+    this.renderer?.remove()
+    this.#imageBook?.disposeImageBook(); this.#imageBook = null
+    this.#sectionProgress = null
+    this.#tocProgress = null
+    this.#pageProgress = null
+    this.#searchResults = new Map()
+    this.lastLocation = null
+    this.#lastCfi = null
+    this.#lastChapterLocation = null
+    this.history.clear()
+    this.tts = null
+    this.mediaOverlay = null
+    this.#translator?.destroy()
+  }
+  #cancelTranslationPrefetch() {
+    clearTimeout(this.#translationPrefetchTimer)
+    this.#translationPrefetchTimer = null
+    this.#translationPrefetchController?.abort()
+    this.#translationPrefetchController = null
+    this.#translator?.clearPrefetchQueue()
+  }
+  goToTextStart() {
+    return this.goTo(this.book.landmarks
+      ?.find(m => m.type.includes('bodymatter') || m.type.includes('text'))
+      ?.href ?? this.book.sections.findIndex(s => s.linear !== 'no'))
+  }
+  async init({ lastLocation, showTextStart }) {
+    this.history.clear()
+    const resolved = lastLocation ? this.resolveNavigation(lastLocation) : null
+    if (resolved) {
+      // A stale saved CFI must not abort startup before TOC/annotations load.
+      // Recover only initial text anchors; annotation ranges remain strict.
+      const target = resolved.textAnchor && typeof resolved.anchor === 'function'
+        ? { ...resolved, anchor: doc => {
+          try { return resolved.anchor(doc) }
+          catch (error) {
+            if (!['IndexSizeError', 'NotFoundError', 'TypeError', 'RangeError'].includes(error.name)) throw error
+            console.warn(`Reader saved text position unavailable; restored chapter start: index=${resolved.index}, reason=${error.name}`)
+            return 0
+          }
+        } }
+        : resolved
+      await this.renderer.goTo(target)
+      this.history.clear(this.lastLocation?.cfi ?? lastLocation)
+    }
+    else if (showTextStart) await this.goToTextStart()
+    else {
+      this.history.pushState(0)
+      await this.next()
+    }
+  }
+  #emit(name, detail, cancelable) {
+    return this.dispatchEvent(new CustomEvent(name, { detail, cancelable }))
+  }
+  #onRelocate({ reason, range, index, fraction, size, readingAction, pdfRegion }) {
+    this.#index = index
+    if (!this.isFixedLayout && (!this.renderer.scrolled || this.#translationPrefetchPages))
+      this.#translator.observeVisibleRange(range)
+    if (this.#translationPrefetchPages) this.#scheduleTranslationPrefetch()
+    const progress = this.#sectionProgress?.getProgress(index, fraction, size) ?? {}
+    const tocItem = this.#tocProgress?.getProgress(index, range)
+    const pageItem = this.#pageProgress?.getProgress(index, range)
+    const cfi = this.getCFI(index, range)
+    const chapterLocation = pdfRegion
+      ? { current: pdfRegion.panel + 1, total: pdfRegion.total }
+      : getChapterLocation(this.renderer, progress.section, { fraction, size })
+
+    const section = progress.section ?? { current: index, total: this.book.sections.length }
+    this.lastLocation = { ...progress, section, tocItem, pageItem, cfi, range, chapterLocation, reason, pdfRegion,
+      readingAction: readingAction ?? (reason === 'page' || reason === 'navigation') }
+    if (reason === 'snap' || reason === 'page' || reason === 'scroll' || reason === 'auto-scroll')
+      this.history.replaceState(cfi)
+
+    if (cfi && (!this.#lastCfi || cfi !== this.#lastCfi ||
+      chapterLocation.current !== this.#lastChapterLocation?.current ||
+      chapterLocation.total !== this.#lastChapterLocation?.total || reason === 'layout' || reason === 'viewport' || reason === 'auto-scroll')) {
+      this.#lastCfi = cfi
+      this.#lastChapterLocation = chapterLocation
+      this.#emit('relocate', this.lastLocation)
+    }
+  }
+
+  #setChapterLanguage(doc) {
+    doc.documentElement.lang ||= this.language.canonical ?? ''
+    if (!this.language.isCJK)
+      doc.documentElement.dir ||= this.language.direction ?? ''
+  }
+
+  #onLoad({ doc, index }) {
+    this.#setChapterLanguage(doc)
+    repairSelfReferentialNotes(doc)
+    this.#handleLinks(doc, index)
+    this.#handleClick(doc)
+    this.#handleImage(doc)
+    
+    // Start translation observation for this document
+    this.#translator.observeDocument(doc)
+    
+    this.#emit('load', { doc, index })
+  }
+  #handleLinks(doc, index) {
+    const { book } = this
+    const section = book.sections[index]
+    for (const a of doc.querySelectorAll('a[href]'))
+      a.addEventListener('click', e => {
+        e.preventDefault()
+        // Some scanned EPUB/Kindle pages wrap their image in a link to the
+        // original picture. It is still a page tap, not picture navigation.
+        // Keep text links and footnote popups on the normal link path.
+        if (this.scannedImageDocument && !doc.__isFootNote &&
+          e.target.closest?.('img, svg')) return
+        e.stopPropagation()
+        const href_ = a.getAttribute('href')
+        const href = section?.resolveHref?.(href_) ?? href_
+        if (book?.isExternal?.(href))
+          Promise.resolve(this.#emit('external-link', { a, href }, true))
+            .then(x => x ? globalThis.open(href, '_blank') : null)
+            .catch(e => console.error(e))
+        else Promise.resolve(this.#emit('link', { a, href }, true))
+          .then(x => x ? this.goTo(href) : null)
+          .catch(e => console.error(e))
+      })
+  }
+
+  #handleImage(doc) {
+    for (const img of doc.querySelectorAll('img')) {
+      // Scanned pages are the reading surface. Do not install picture actions,
+      // including desktop click or touch long-press preview handlers.
+      if (!doc.__isFootNote && (this.scannedImageDocument ||
+        img.hasAttribute('data-document-base'))) {
+        img.draggable = false
+        img.style.webkitTouchCallout = 'none'
+        img.addEventListener('contextmenu', e => e.preventDefault())
+        continue
+      }
+      if (imageFootnoteText(img) !== null) {
+        // A short tap opens the annotation on touch devices as well as desktop.
+        // Do not start image-preview long press or bubble into page/menu actions.
+        img.draggable = false
+        img.style.webkitTouchCallout = 'none'
+        img.style.cursor = 'pointer'
+        img.addEventListener('contextmenu', e => {
+          e.preventDefault()
+          e.stopPropagation()
+        })
+        img.addEventListener('click', e => {
+          e.preventDefault()
+          e.stopPropagation()
+          this.#emit('image-footnote', { img }, true)
+        })
+        continue
+      }
+      // disable for a link
+      if (img.closest('a[href]')) continue;
+
+      // prevent iOS long-press image preview / callout and disable dragging/selecting
+      img.style.webkitTouchCallout = 'none'       // iOS long-press callout
+      img.style.webkitUserSelect = 'none'
+      img.style.userSelect = 'none'
+      img.style.webkitUserDrag = 'none'
+      img.draggable = false
+      // also block contextmenu to be safe
+      img.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); }, true);
+      // Check if device supports touch (mobile/tablet)
+      const isTouchDevice = 'ontouchstart' in window;
+ 
+      if (isTouchDevice) {
+        // For touch devices, implement longpress
+        let longPressTimer;
+        let longPressTriggered = false;
+        const longPressDelay = 500; // 500ms for longpress
+      
+        img.addEventListener('touchstart', e => {
+          longPressTriggered = false;
+          longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            this.#emit('click-image', { img });
+          }, longPressDelay);
+        });
+      
+        img.addEventListener('touchend', e => {
+          clearTimeout(longPressTimer);
+          // do not prevent here so a short tap will produce a normal click that can bubble
+        });
+      
+        img.addEventListener('touchmove', e => {
+          clearTimeout(longPressTimer);
+        });
+      
+        // intercept the synthetic click after a longpress and suppress it;
+        // allow normal clicks (short taps) to bubble
+        img.addEventListener('click', e => {
+          if (longPressTriggered) {
+            e.preventDefault();
+            e.stopPropagation();
+            longPressTriggered = false;
+          }
+        }, true);
+      } else {
+        // For desktop devices, keep original click behavior
+        img.addEventListener('click', e => {
+          e.preventDefault()
+          e.stopPropagation()
+          this.#emit('click-image', { img })
+        })
+      }
+    }
+  }
+
+  #handleClick(doc) {
+    doc.addEventListener('click', e => {
+      if (window.isFootNoteOpen() && !e.currentTarget.__isFootNote) {
+        window.closeFootNote()
+        return
+      }
+
+      if (doc.getSelection().type === "Range")
+        return
+
+      const position = doc.position
+      const scale = doc.scale
+      let { clientX, clientY } = e
+      
+      // if the position is not null, it is fixed layout
+      if (position) {
+        if (doc.pdfRegion) {
+          if (doc.pdfClientPoint) {
+            this.#emit('click-view', doc.pdfClientPoint(clientX, clientY))
+            return
+          }
+          const rect = doc.defaultView.frameElement.getBoundingClientRect()
+          this.#emit('click-view', { x: rect.left + clientX * scale, y: rect.top + clientY * scale })
+          return
+        }
+        clientX *= scale
+        clientY *= scale
+
+        const docWidth = doc.documentElement.getBoundingClientRect().width * scale
+        if (position === 'right' && docWidth * 2.2 < window.innerWidth) {
+          clientX += window.innerWidth * 0.5
+        }
+        this.#emit('click-view', { x: clientX, y: clientY })
+        return
+      }
+      
+      const iframe = doc.defaultView?.frameElement
+      if (iframe) {
+        const rect = iframe.getBoundingClientRect()
+        clientX += rect.left
+        clientY += rect.top
+      }
+
+      this.#emit('click-view', { x: clientX, y: clientY })
+    })
+  }
+  #handleRendererClick = e => {
+    let { clientX, clientY } = e
+    while (window.innerWidth > 0 && clientX > window.innerWidth)
+      clientX -= window.innerWidth
+    this.#emit('click-view', { x: clientX, y: clientY })
+  }
+  async addAnnotation(annotation, remove) {
+    const { value } = annotation
+    if (value.startsWith(SEARCH_PREFIX)) {
+      const generation = this.#searchGeneration
+      const cfi = value.replace(SEARCH_PREFIX, '')
+      const { index, anchor } = await this.resolveNavigation(cfi)
+      if (!remove && generation !== this.#searchGeneration) return
+      const obj = this.#getOverlayer(index)
+      if (obj) {
+        const { overlayer, doc } = obj
+        if (remove) {
+          overlayer.remove(value)
+          return
+        }
+        const range = doc ? anchor(doc) : anchor
+        overlayer.addSearch(value, range)
+      }
+      return
+    }
+    const { index, anchor } = await this.resolveNavigation(value)
+    const obj = this.#getOverlayer(index)
+    if (obj) {
+      const { overlayer, doc } = obj
+      overlayer.remove(value)
+      if (!remove) {
+        const range = doc ? anchor(doc) : anchor
+        const draw = (func, opts) => overlayer.add(value, range, func, opts)
+        this.#emit('draw-annotation', { draw, annotation, doc, range })
+      }
+    }
+    const label = this.#tocProgress.getProgress(index)?.label ?? ''
+    return { index, label }
+  }
+  deleteAnnotation(annotation) {
+    return this.addAnnotation(annotation, true)
+  }
+  #getOverlayer(index) {
+    return this.renderer.getContents()
+      .find(x => x.index === index && x.overlayer)
+  }
+  #createOverlayer({ doc, index }) {
+    const overlayer = new Overlayer(doc)
+    doc.addEventListener('click', e => {
+      // Capture runs before the link/image handlers. Let footnotes and book
+      // links receive their click even when a highlight/underline covers them.
+      // Only the marker yields: adjacent marked text keeps its annotation menu.
+      const target = e.target?.nodeType === 1 ? e.target : e.target?.parentElement
+      if (target?.closest?.('a[href]') || imageFootnoteText(target) !== null) return
+      const [value, range] = overlayer.hitTest(e)
+      if (value && !value.startsWith(SEARCH_PREFIX)) {
+        e.preventDefault()
+        e.stopPropagation()
+        this.#emit('show-annotation', { value, index, range })
+      }
+    }, true)
+
+    const list = this.#searchResults.get(index)
+    if (list) for (const item of list) this.addAnnotation(item)
+
+    this.#emit('create-overlay', { index })
+    return overlayer
+  }
+  async showAnnotation(annotation) {
+    const { value } = annotation
+    const resolved = await this.goTo(value)
+    if (resolved) {
+      const { index, anchor } = resolved
+      const { doc } = this.#getOverlayer(index)
+      const range = anchor(doc)
+      this.#emit('show-annotation', { value, index, range })
+    }
+  }
+  getCFI(index, range) {
+    const baseCFI = this.book.sections[index].cfi ?? CFI.fake.fromIndex(index)
+    if (!range) return baseCFI
+    return CFI.joinIndir(baseCFI, CFI.fromRange(range))
+  }
+  resolveCFI(cfi) {
+    if (this.book.resolveCFI)
+      return this.book.resolveCFI(cfi)
+    else {
+      const parts = CFI.parse(cfi)
+      const index = CFI.fake.toIndex((parts.parent ?? parts).shift())
+      const anchor = cfi.includes('!') ? doc => CFI.toRange(doc, parts) : () => 0
+      return { index, anchor, textAnchor: cfi.includes('!') }
+    }
+  }
+  resolveNavigation(target) {
+    try {
+      if (typeof target === 'number') return { index: target }
+      if (typeof target.fraction === 'number') {
+        const [index, anchor] = this.#sectionProgress.getSection(target.fraction)
+        return { index, anchor }
+      }
+      if (CFI.isCFI.test(target)) return this.resolveCFI(target)
+      return this.book.resolveHref(target)
+    } catch (e) {
+      console.error(e)
+      console.error(`Could not resolve target ${target}`)
+    }
+  }
+  #recordNavigation(target, previous, recordHistory = true) {
+    const current = this.lastLocation?.cfi ?? target
+    if (!recordHistory) return this.history.replaceState(current)
+    // Save the actual position before a deliberate jump, not an old href or
+    // fraction. A native scroll during goTo may otherwise replace that origin.
+    if (previous != null) this.history.replaceState(previous)
+    this.history.pushState(current)
+  }
+  clearNavigationHistory() {
+    this.history.clear(this.lastLocation?.cfi)
+  }
+  async goTo(target, { recordHistory = true } = {}) {
+    this.#emit('before-navigation')
+    const resolved = this.resolveNavigation(target)
+    if (!resolved) return
+    const previous = this.lastLocation?.cfi
+    try {
+      if (await this.renderer.goTo(resolved) === false) return
+      this.#recordNavigation(target, previous, recordHistory)
+      return resolved
+    } catch (e) {
+      console.error(e)
+      console.error(`Could not go to ${target}`)
+    }
+  }
+  async goToFraction(frac) {
+    this.#emit('before-navigation')
+    const previous = this.lastLocation?.cfi
+    const [index, anchor] = this.#sectionProgress.getSection(frac)
+    await this.renderer.goTo({ index, anchor })
+    this.#recordNavigation({ fraction: frac }, previous)
+  }
+  async select(target) {
+    this.#emit('before-navigation')
+    const previous = this.lastLocation?.cfi
+    try {
+      const obj = await this.resolveNavigation(target)
+      if (!obj) return
+      await this.renderer.goTo({ ...obj, select: true })
+      this.#recordNavigation(target, previous)
+    } catch (e) {
+      console.error(e)
+      console.error(`Could not go to ${target}`)
+    }
+  }
+  deselect() {
+    for (const { doc } of this.renderer.getContents())
+      doc.defaultView.getSelection().removeAllRanges()
+  }
+  getSectionFractions() {
+    const hrefList = this.#tocProgress?.ids ?? []
+    return (this.#sectionProgress?.sectionFractions ?? [])
+    // .map(x => x + Number.EPSILON)
+      .map((fraction, index) => ({
+        fraction,
+        href: hrefList[index] ?? '',
+        index
+      }))
+  }
+  getProgressOf(index, range) {
+    const tocItem = this.#tocProgress?.getProgress(index, range)
+    const pageItem = this.#pageProgress?.getProgress(index, range)
+    return { tocItem, pageItem }
+  }
+  getProgressChapters() {
+    const fractions = this.#sectionProgress?.sectionFractions ?? []
+    const sections = this.book?.sections ?? []
+    return sections.map((_, index) => ({
+      number: index + 1,
+      title: this.#tocProgress?.getProgress(index)?.label ?? '',
+      start: fractions[index] ?? index / sections.length,
+      end: fractions[index + 1] ?? (index + 1) / sections.length,
+    }))
+  }
+  async getTOCItemOf(target) {
+    try {
+      const { index, anchor } = await this.resolveNavigation(target)
+      const doc = await this.book.sections[index].createDocument()
+      const frag = anchor(doc)
+      const isRange = frag instanceof Range
+      const range = isRange ? frag : doc.createRange()
+      if (!isRange) range.selectNodeContents(frag)
+      return this.#tocProgress.getProgress(index, range)
+    } catch (e) {
+      console.error(e)
+      console.error(`Could not get ${target}`)
+    }
+  }
+  async prev(distance) {
+    this.#emit('before-navigation')
+    await this.renderer.prev(distance)
+  }
+  async next(distance) {
+    this.#emit('before-navigation')
+    await this.renderer.next(distance)
+  }
+  goLeft() {
+    return this.book.dir === 'rtl' ? this.next() : this.prev()
+  }
+  goRight() {
+    return this.book.dir === 'rtl' ? this.prev() : this.next()
+  }
+  async * #searchSection(matcher, query, index) {
+    const doc = await this.book.sections[index].createDocument()
+    for (const { range, excerpt } of matcher(doc, query))
+      yield { cfi: this.getCFI(index, range), excerpt }
+  }
+  async * #searchBook(matcher, query) {
+    const { sections } = this.book
+    for (const [index, { createDocument }] of sections.entries()) {
+      if (!createDocument) continue
+      const doc = await createDocument()
+      const subitems = Array.from(matcher(doc, query), ({ range, excerpt }) =>
+        ({ cfi: this.getCFI(index, range), excerpt }))
+      const progress = (index + 1) / sections.length
+      yield { progress }
+      if (subitems.length) yield { index, subitems }
+    }
+  }
+  async * search(opts) {
+    console.log('search', opts)
+    this.clearSearch()
+    const generation = this.#searchGeneration
+    const { searchMatcher } = await import('./search.js')
+    if (generation !== this.#searchGeneration) return
+    const { query, index } = opts
+    const matcher = searchMatcher(textWalker,
+      { defaultLocale: this.language.canonical, ...opts })
+    const iter = index != null
+      ? this.#searchSection(matcher, query, index)
+      : this.#searchBook(matcher, query)
+
+    const list = []
+    this.#searchResults.set(index, list)
+
+    for await (const result of iter) {
+      if (generation !== this.#searchGeneration) return
+      if (result.subitems) {
+        const list = result.subitems
+          .map(({ cfi }) => ({ value: SEARCH_PREFIX + cfi }))
+        this.#searchResults.set(result.index, list)
+        for (const item of list) this.addAnnotation(item)
+        yield {
+          label: this.#tocProgress.getProgress(result.index)?.label ?? '',
+          subitems: result.subitems,
+        }
+      }
+      else {
+        if (result.cfi) {
+          const item = { value: SEARCH_PREFIX + result.cfi }
+          list.push(item)
+          this.addAnnotation(item)
+        }
+        yield result
+      }
+    }
+    yield 'done'
+  }
+  clearSearch() {
+    this.#searchGeneration++
+    // Clear synchronously: an old async CFI removal must not erase the same
+    // hit re-added by a new query. Includes every live preloaded chapter.
+    for (const { overlayer } of this.renderer?.getContents() ?? [])
+      overlayer?.clearSearch()
+    this.#searchResults.clear()
+  }
+  oldValue = null
+  #ttsPresentation = null
+  #ttsPresenting = false
+  ttsBackground = false
+  #ttsDocuments = new Map()
+  #ttsDocument(index) {
+    let entry = this.#ttsDocuments.get(index)
+    if (entry) return entry
+    entry = { doc: null, peek: null }
+    this.#ttsDocuments.set(index, entry)
+    entry.promise = Promise.resolve().then(() => this.book.sections[index].createDocument())
+      .then(doc => {
+        if (!doc?.body) throw new Error('Speech chapter has no text document')
+        this.prepareTtsDocument?.(doc)
+        entry.doc = doc
+        return doc
+      }).catch(error => {
+        // Keep a failed speculative read until the consumer reaches it. The
+        // producer polls frequently; retrying here would hammer a corrupt ZIP.
+        entry.error = error
+        throw error
+      })
+    // Lookahead errors are retried by navigation, never unhandled rejections
+    // and never a reason to stop the chapter that is currently audible.
+    void entry.promise.catch(() => {})
+    return entry
+  }
+  discardTTSSection(index) { this.#ttsDocuments.delete(index) }
+  #warmTTSSections() {
+    const current = this.tts?.sectionIndex
+    if (!Number.isInteger(current)) return
+    const keep = new Set([current])
+    const sections = this.book.sections
+    // Bounded text-only lookahead. No iframe, fonts, images or page animation.
+    for (let index = current + 1; index < sections.length && keep.size < 4; index++) {
+      if (sections[index].linear === 'no') continue
+      if (!sections[index].createDocument) break
+      keep.add(index)
+      this.#ttsDocument(index)
+    }
+    for (const index of this.#ttsDocuments.keys())
+      if (!keep.has(index)) this.#ttsDocuments.delete(index)
+  }
+  collectTTSDetails(count, options = {}) {
+    const details = this.tts.collectDetails(count, options)
+    // Only the normal sequential producer looks across chapters. Other peek
+    // offsets retain their existing, chapter-local semantics.
+    if (!options.includeCurrent || (options.offset ?? 1) !== 1) return details
+    this.#warmTTSSections()
+    for (let index = this.tts.sectionIndex + 1;
+      details.length < count && index < this.book.sections.length; index++) {
+      if (this.book.sections[index].linear === 'no') continue
+      const entry = this.#ttsDocuments.get(index)
+      // Never hold this chapter's ready text behind a slow next-chapter read.
+      if (!entry?.doc) break
+      entry.peek ??= new TTS(entry.doc, textWalker, null,
+        range => this.getCFI(index, range),
+        { paragraphMode: this.ttsParagraphMode === true, maxCharacters: this.ttsMaxCharacters })
+      details.push(...entry.peek.collectDetails(count - details.length, { includeCurrent: true }))
+    }
+    return details
+  }
+  async loadTTSSection(index, isCurrent = () => true) {
+    if (this.#ttsDocuments.get(index)?.error) this.discardTTSSection(index)
+    const doc = await this.#ttsDocument(index).promise
+    if (!isCurrent()) return false
+    if (!doc?.body) throw new Error('Speech chapter has no text document')
+    this.initTTS(false, { force: true, content: { doc, index }, detached: true })
+    return true
+  }
+  // Never awaited by the speech cursor. A suspended WebView layout must not
+  // prevent synthesis/playback of subsequent chapters.
+  async syncTTSHighlight({ forceFollow = false } = {}) {
+    if (this.ttsBackground || document.hidden || this.#ttsPresenting || !this.#ttsPresentation) return
+    this.#ttsPresenting = true
+    const current = this.#ttsPresentation
+    try {
+      const { cfi, tts } = current
+      const follow = forceFollow || current.follow !== false
+      const resolved = this.resolveNavigation(cfi)
+      if (!resolved) return
+      const { index, anchor } = resolved
+      if (follow && this.renderer.getContents()[0]?.index !== index)
+        await this.renderer.goTo(resolved)
+      if (this.tts !== tts || this.#ttsPresentation !== current || this.ttsBackground || document.hidden) return
+      const content = this.renderer.getContents().find(x => x.index === index)
+      if (!content) return
+      const range = anchor(content.doc)
+      const obj = this.#getOverlayer(index)
+      if (obj) {
+        obj.overlayer.remove(this.oldValue)
+        obj.overlayer.add(cfi, range, Overlayer.highlight, { color: '#39c5bc83' })
+        this.oldValue = cfi
+      }
+      if (follow) await this.renderer.scrollToAnchor(range)
+    } catch (error) {
+      console.warn('Speech presentation could not follow the cursor', error)
+    } finally {
+      this.#ttsPresenting = false
+      if (this.#ttsPresentation && this.#ttsPresentation !== current)
+        void this.syncTTSHighlight()
+    }
+  }
+  reportTTSProgress(index, range, cfi) {
+    const doc = range.startContainer.ownerDocument
+    const prefix = doc.createRange()
+    prefix.selectNodeContents(doc.body)
+    prefix.setEnd(range.startContainer, range.startOffset)
+    const fraction = Math.min(1, prefix.toString().length / Math.max(1, doc.body.textContent.length))
+    const progress = this.#sectionProgress?.getProgress(index, fraction) ?? {}
+    this.#emit('tts-progress', { cfi, fraction: progress.fraction })
+  }
+  followTTSProgress({ cfi, text, fraction, offset }) {
+    const tts = this.tts
+    const detail = tts?.currentDetail()
+    if (!detail || (cfi && cfi !== detail.cfi) || (text && text !== detail.text)) return false
+    const range = tts.progressRange({ fraction, offset })
+    if (!range) return false
+    const value = this.getCFI(tts.sectionIndex, range)
+    this.#ttsPresentation = { cfi: value, tts }
+    this.reportTTSProgress(tts.sectionIndex, range, value)
+    // Same-page audio ticks do not scroll or redraw the highlight. A range can
+    // span pages; compare its START with the visible range, not its whole end.
+    const visible = this.lastLocation?.range
+    try {
+      const resolved = this.resolveNavigation(value)
+      const doc = visible?.startContainer.ownerDocument
+      const content = this.renderer.getContents().find(x => x.index === tts.sectionIndex)
+      if (doc && content?.doc === doc) {
+        const point = resolved.anchor(doc).cloneRange()
+        point.collapse(true)
+        const end = visible.cloneRange()
+        end.collapse(false)
+        if (point.compareBoundaryPoints(0, visible) >= 0 &&
+            point.compareBoundaryPoints(0, end) < 0) return true
+      }
+    } catch (_) { /* Different chapter documents: follow via its stable CFI. */ }
+    void this.syncTTSHighlight()
+    return true
+  }
+  initTTS(stop, { force = false, content, detached = false } = {}) {
+    if (stop) {
+      this.#ttsDocuments.clear()
+      this.#ttsPresentation = null
+      this.renderer.pinTtsSection?.(null)
+      this.#getOverlayer(this.tts?.sectionIndex ?? this.#index)?.overlayer.remove(this.oldValue)
+      this.tts = null
+      this.oldValue = null
+      return
+    }
+
+    if (this.tts && !force) return
+
+    const { doc, index } = content ?? this.renderer.getContents()[0];
+    if (this.tts && this.tts.doc === doc) return;
+    this.#getOverlayer(this.tts?.sectionIndex ?? index)?.overlayer.remove(this.oldValue)
+    this.oldValue = null
+    this.renderer.pinTtsSection?.(detached ? null : index)
+    this.tts = new TTS(
+      doc,
+      textWalker,
+      (range) => {
+        const value = this.getCFI(index, range)
+        this.#ttsPresentation = { cfi: value, tts: this.tts, follow: !this.ttsRestoring }
+        // Metadata follows the speech document, not the visible page. This is
+        // synchronous and must not wait for a suspended background renderer.
+        const chapterTitle = this.getProgressOf(index, range)?.tocItem?.label ?? ''
+        this.#emit('tts-chapter', { index, chapterTitle })
+        // Persist the speech cursor even when no visible page is being laid
+        // out. Percent is text-based here; the CFI remains the exact position.
+        this.reportTTSProgress(index, range, value)
+        void this.syncTTSHighlight()
+        return value;
+      },
+      (range) => this.getCFI(index, range),
+      { paragraphMode: this.ttsParagraphMode === true, maxCharacters: this.ttsMaxCharacters },
+    );
+    this.tts.sectionIndex = index;
+    this.#warmTTSSections()
+  }
+  startMediaOverlay() {
+    const { index } = this.renderer.getContents()[0]
+    return this.mediaOverlay.start(index)
+  }
+  
+  // Translation control methods
+  async setTranslationMode(mode, sessionId) {
+    await this.#translator.setTranslationMode(mode, sessionId)
+    if (this.#translationPrefetchPages) this.#scheduleTranslationPrefetch()
+  }
+  setTranslationPrefetchPages(pages) {
+    this.#translationPrefetchPages = Number.isInteger(pages) ? Math.max(0, Math.min(5, pages)) : 0
+    this.#scheduleTranslationPrefetch()
+  }
+  #scheduleTranslationPrefetch() {
+    const renderer = this.renderer
+    if (!this.#translationPrefetchPages || this.#switchingRenderer
+        || !renderer?.forEachTranslationPrefetchRange
+        || this.#translator.getTranslationMode() === TranslationMode.OFF) {
+      this.#cancelTranslationPrefetch()
+      return
+    }
+    if (this.#translationPrefetchTimer != null) return
+    this.#cancelTranslationPrefetch()
+    this.#translationPrefetchTimer = setTimeout(async () => {
+      this.#translationPrefetchTimer = null
+      const pages = this.#translationPrefetchPages
+      const controller = new AbortController()
+      this.#translationPrefetchController = controller
+      try {
+        if (this.#translationPrefetchWork) await this.#translationPrefetchWork
+        if (controller.signal.aborted) return
+        const work = renderer.forEachTranslationPrefetchRange(pages, range => {
+          if (!controller.signal.aborted) this.#translator.addPrefetchRange(range, pages)
+        }, controller.signal, doc => {
+          this.#setChapterLanguage(doc)
+          this.prepareTranslationDocument?.(doc)
+        }).catch(() => {
+          // A chapter that fails to preload can still be opened normally.
+        })
+        this.#translationPrefetchWork = work
+        await work
+        if (this.#translationPrefetchWork === work) this.#translationPrefetchWork = null
+      } finally {
+        if (this.#translationPrefetchController === controller)
+          this.#translationPrefetchController = null
+      }
+    }, 100)
+  }
+  setTranslationTextStyle(style) {
+    this.#translator.setTextStyle(style)
+  }
+  
+  getTranslationMode() {
+    return this.#translator.getTranslationMode()
+  }
+  
+  clearTranslations() {
+    this.#translator.clearTranslations()
+  }
+}
+
+customElements.define('foliate-view', View)
