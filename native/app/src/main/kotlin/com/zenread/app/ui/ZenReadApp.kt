@@ -1,7 +1,12 @@
 package com.zenread.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -36,6 +41,13 @@ data object HomeKey : NavKey
 fun ZenReadApp() {
     val backStack = rememberNavBackStack(HomeKey)
     val back = { backStack.removeLastOrNull(); Unit }
+    var tab by rememberSaveable { mutableStateOf(HomeTab.LIBRARY) }
+
+    // Back on another tab returns to the library before leaving the app, but only while Home
+    // is the whole back stack. Activity BackHandlers and NavDisplay's own handler are ordered
+    // by when they were enabled, so a handler that stayed enabled under a pushed page could
+    // swallow that page's back gesture (seen on Android 17).
+    BackHandler(enabled = backStack.size == 1 && tab != HomeTab.LIBRARY) { tab = HomeTab.LIBRARY }
     val motion = MaterialTheme.motionScheme
     val slide = with(LocalDensity.current) { SLIDE_DISTANCE.roundToPx() }
 
@@ -52,6 +64,8 @@ fun ZenReadApp() {
         entryProvider = entryProvider {
             entry<HomeKey> {
                 HomeScreen(
+                    tab = tab,
+                    onSelectTab = { tab = it },
                     onOpenBook = { bookId, cfi -> backStack.add(ReaderKey(bookId, cfi)) },
                     onOpenSettings = { backStack.add(SettingsCategoryKey(it)) },
                 )

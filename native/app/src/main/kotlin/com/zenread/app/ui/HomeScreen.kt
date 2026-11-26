@@ -1,6 +1,5 @@
 package com.zenread.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.material.icons.Icons
@@ -17,11 +16,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.zenread.app.R
@@ -31,7 +26,7 @@ import com.zenread.feature.notes.NotesScreen
 import com.zenread.feature.settings.SettingsCategory
 import com.zenread.feature.settings.SettingsScreen
 
-private enum class HomeTab(
+internal enum class HomeTab(
     @param:StringRes val label: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
@@ -43,19 +38,18 @@ private enum class HomeTab(
 
 /**
  * Library, notes and settings behind a navigation bar (rail on wide windows). Tabs switch
- * with a fade through and keep their scroll position; Back on another tab returns to the
- * library before leaving the app.
+ * with a fade through and keep their scroll position. [tab] is owned by the root so its
+ * Back rule can depend on what is on top of the back stack (see `ZenReadApp`).
  */
 @Composable
 internal fun HomeScreen(
+    tab: HomeTab,
+    onSelectTab: (HomeTab) -> Unit,
     onOpenBook: (bookId: Long, cfi: String?) -> Unit,
     onOpenSettings: (SettingsCategory) -> Unit,
 ) {
-    var tab by rememberSaveable { mutableStateOf(HomeTab.LIBRARY) }
     val tabStates = rememberSaveableStateHolder()
     val motion = MaterialTheme.motionScheme
-
-    BackHandler(enabled = tab != HomeTab.LIBRARY) { tab = HomeTab.LIBRARY }
 
     NavigationSuiteScaffold(
         layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfoV2()),
@@ -64,7 +58,7 @@ internal fun HomeScreen(
                 val selected = destination == tab
                 item(
                     selected = selected,
-                    onClick = { tab = destination },
+                    onClick = { onSelectTab(destination) },
                     icon = {
                         Icon(
                             if (selected) destination.selectedIcon else destination.unselectedIcon,
