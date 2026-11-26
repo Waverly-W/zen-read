@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_title">Library</string>
+    <string name="library_import">Import books</string>
+    <string name="library_empty_title">Your library is empty</string>
+    <string name="library_empty_body">Import EPUB, MOBI, AZW3, FB2, PDF or CBZ files to start reading.</string>
+    <string name="library_delete_title">Delete book?</string>
+    <string name="library_delete_body">“%1$s” and its reading progress will be removed from this device.</string>
+    <string name="library_delete_confirm">Delete</string>
+    <plurals name="library_imported">
+        <item quantity="one">Imported %d book</item>
+        <item quantity="other">Imported %d books</item>
+    </plurals>
+    <plurals name="library_duplicates">
+        <item quantity="one">%d already in library</item>
+        <item quantity="other">%d already in library</item>
+    </plurals>
+    <plurals name="library_unsupported">
+        <item quantity="one">%d unsupported file</item>
+        <item quantity="other">%d unsupported files</item>
+    </plurals>
+    <string name="library_failed">Could not read: %1$s</string>
+</resources>

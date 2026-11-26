@@ -30,10 +30,30 @@ const animate = (a, b, duration, ease, render) => new Promise(resolve => {
 
 // collapsed range doesn't return client rects sometimes (or always?)
 // try make get a non-collapsed range or element
+// ZenRead patch: a point at the end of a text node is the same position as the start of
+// the next text node. Measuring the previous character (or, for a one-character node, the
+// whole parent element) mapped page-start CFIs onto the previous page on restore.
+const nextTextNode = node => {
+  const doc = node.ownerDocument
+  const walker = doc.createTreeWalker(doc.body ?? doc.documentElement, NodeFilter.SHOW_TEXT)
+  walker.currentNode = node
+  let next = walker.nextNode()
+  while (next && !next.length) next = walker.nextNode()
+  return next
+}
+
 const uncollapse = range => {
   if (!range?.collapsed) return range
   const { endOffset, endContainer } = range
   if (endContainer.nodeType === 1) return endContainer
+  if (endOffset >= endContainer.length) {
+    const next = nextTextNode(endContainer)
+    if (next) {
+      range.setStart(next, 0)
+      range.setEnd(next, 1)
+      return range
+    }
+  }
   if (endOffset + 1 < endContainer.length) range.setEnd(endContainer, endOffset + 1)
   else if (endOffset > 1) range.setStart(endContainer, endOffset - 1)
   else return endContainer.parentNode

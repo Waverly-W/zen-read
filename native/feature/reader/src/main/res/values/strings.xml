@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_back">Back</string>
+    <string name="reader_toc">Contents</string>
+    <string name="reader_toc_empty">This book has no table of contents.</string>
+    <string name="reader_typography">Text and layout</string>
+    <string name="reader_prev_chapter">Previous chapter</string>
+    <string name="reader_next_chapter">Next chapter</string>
+    <string name="reader_theme">Page color</string>
+    <string name="reader_theme_auto">Follow system</string>
+    <string name="reader_font_size">Font size</string>
+    <string name="reader_smaller">Smaller</string>
+    <string name="reader_larger">Larger</string>
+    <string name="reader_line_height">Line spacing</string>
+    <string name="reader_margins">Side margins</string>
+    <string name="reader_page_turn">Page turning</string>
+    <string name="reader_turn_slide">Slide</string>
+    <string name="reader_turn_scroll">Scroll</string>
+    <string name="reader_turn_none">Instant</string>
+    <string name="reader_retry">Retry</string>
+    <string name="reader_error_missing">The book file is missing. Delete it from the library and import it again.</string>
+    <string name="reader_error_webview">The system WebView is too old to open books. Update “Android System WebView” from the Play Store.</string>
+    <string name="reader_error_load">This book could not be opened.</string>
+    <string name="reader_error_crash">The reader stopped unexpectedly.</string>
+</resources>

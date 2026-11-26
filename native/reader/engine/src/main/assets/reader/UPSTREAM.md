@@ -1,6 +1,6 @@
 # Vendored reader engine
 
-Copied unmodified from the Modu Reader Flutter app (`assets/foliate-js/` at commit
+Copied from the Modu Reader Flutter app (`assets/foliate-js/` at commit
 83e39a79), which itself forks [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT).
 
 Only the runtime files are vendored: `index.html`, `reader-bootstrap.js`, `src/`, `dist/`.
@@ -10,4 +10,6 @@ note the change at the top of that file and list it below.
 
 ## Local changes
 
-None.
+- `src/paginator.js` — `uncollapse()`: a collapsed range at the end of a text node now
+  measures from the start of the next text node. Before, restoring a page-start CFI that
+  fell on a split text node opened the previous page.

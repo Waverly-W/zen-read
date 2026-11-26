@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_back">返回</string>
+    <string name="reader_toc">目录</string>
+    <string name="reader_toc_empty">这本书没有目录。</string>
+    <string name="reader_typography">文字与排版</string>
+    <string name="reader_prev_chapter">上一章</string>
+    <string name="reader_next_chapter">下一章</string>
+    <string name="reader_theme">页面颜色</string>
+    <string name="reader_theme_auto">跟随系统</string>
+    <string name="reader_font_size">字号</string>
+    <string name="reader_smaller">缩小</string>
+    <string name="reader_larger">放大</string>
+    <string name="reader_line_height">行距</string>
+    <string name="reader_margins">左右边距</string>
+    <string name="reader_page_turn">翻页方式</string>
+    <string name="reader_turn_slide">滑动</string>
+    <string name="reader_turn_scroll">滚动</string>
+    <string name="reader_turn_none">无动画</string>
+    <string name="reader_retry">重试</string>
+    <string name="reader_error_missing">书籍文件不存在。请从书架删除后重新导入。</string>
+    <string name="reader_error_webview">系统 WebView 版本过低，无法打开书籍。请在应用商店更新“Android System WebView”。</string>
+    <string name="reader_error_load">这本书无法打开。</string>
+    <string name="reader_error_crash">阅读器意外停止。</string>
+</resources>

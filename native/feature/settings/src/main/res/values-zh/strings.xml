@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance_summary">主题、动态取色、深色模式</string>
+    <string name="settings_reading">阅读</string>
+    <string name="settings_reading_summary">字体、排版、翻页</string>
+    <string name="settings_sync">同步</string>
+    <string name="settings_sync_summary">WebDAV、S3</string>
+    <string name="settings_ai">AI</string>
+    <string name="settings_ai_summary">服务商、模型、书籍索引</string>
+    <string name="settings_tts">听书</string>
+    <string name="settings_tts_summary">语音引擎、语速、定时关闭</string>
+    <string name="settings_translate">翻译</string>
+    <string name="settings_translate_summary">翻译服务、目标语言</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_about_summary">版本、开源许可</string>
+</resources>
