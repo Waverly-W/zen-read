@@ -59,7 +59,7 @@ class ReaderController(private val webView: WebView) {
      * ready. Call on the main thread.
      */
     suspend fun chapterText(): String? = suspendCancellableCoroutine { cont ->
-        webView.evaluateJavascript("(function(){ try { return theChapterContent() } catch (e) { return null } })()") { raw ->
+        webView.evaluateJavascript(CHAPTER_TEXT_SCRIPT) { raw ->
             val text = raw?.let { runCatching { Json.parseToJsonElement(it).jsonPrimitive.contentOrNull }.getOrNull() }
             cont.resume(
                 text?.replace(Regex("[ \\t\\u00A0]+"), " ")
@@ -76,6 +76,31 @@ class ReaderController(private val webView: WebView) {
     }
 
     internal companion object {
+        /**
+         * Text of the displayed section with one line per block element. `theChapterContent()`
+         * (plain `textContent`) glues headings to the following paragraph; it stays the fallback.
+         */
+        const val CHAPTER_TEXT_SCRIPT = """(function () {
+  try {
+    const doc = reader.view.renderer.getContents?.()?.[0]?.doc
+    const body = doc && doc.body
+    if (!body) return theChapterContent()
+    const BLOCK = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,dt,dd,td,th,figcaption,div,section,article,aside'
+    const norm = s => (s || '').replace(/\s+/g, ' ').trim()
+    const all = norm(body.textContent)
+    const lines = []
+    let covered = 0
+    for (const el of body.querySelectorAll(BLOCK)) {
+      if (el.querySelector(BLOCK)) continue
+      const t = norm(el.textContent)
+      if (t) { lines.push(t); covered += t.length }
+    }
+    return covered >= all.length * 0.5 ? lines.join('\n\n') : all
+  } catch (e) {
+    try { return theChapterContent() } catch (e2) { return null }
+  }
+})()"""
+
         /** Host-only handler name; not part of upstream foliate-js. */
         const val BOOKMARK_STATE = "zenBookmarkState"
 
