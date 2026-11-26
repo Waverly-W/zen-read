@@ -21,11 +21,15 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -139,7 +143,23 @@ class ReaderViewModel @AssistedInject constructor(
                 val list = annotationRepository.observeForBook(bookId).first()
                 _commands.send(PageCommand.ReplaceAnnotations(list))
             }
+            is ReaderEvent.TtsChapter -> _ttsChapters.tryEmit(event.chapterTitle)
+            is ReaderEvent.TtsProgress -> onTtsProgress(event)
         }
+    }
+
+    // --- Read aloud (phase 3) ------------------------------------------------------------------
+
+    private val _ttsChapters = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Chapter titles the read-aloud cursor enters; shown in the playback notification. */
+    val ttsChapters: SharedFlow<String> = _ttsChapters.asSharedFlow()
+
+    /** The speech cursor moved; save it, since a hidden page does not relocate. */
+    private fun onTtsProgress(event: ReaderEvent.TtsProgress) {
+        val position = Cfi.collapseToStart(event.cfi)
+        _state.update { it.copy(initialLocation = position) }
+        books.saveProgress(bookId, position, event.fraction)
     }
 
     private fun onRelocated(event: ReaderEvent.Relocated) {

@@ -31,11 +31,12 @@ import com.zenread.feature.reader.ReaderKey
 import com.zenread.feature.reader.ReaderScreen
 import com.zenread.feature.notes.NotesScreen
 import com.zenread.feature.settings.PlaceholderSettingsScreen
+import com.zenread.feature.settings.SettingsCategory
 import com.zenread.feature.settings.SettingsCategoryKey
 import com.zenread.feature.settings.SettingsKey
 import com.zenread.feature.settings.SettingsScreen
-import com.zenread.feature.settings.SettingsCategory
 import com.zenread.feature.settings.translate.TranslateSettingsScreen
+import com.zenread.feature.settings.tts.TtsSettingsScreen
 
 private enum class TopLevelDestination(
     val key: NavKey,
@@ -104,6 +105,7 @@ fun ZenReadApp() {
                     // Each phase adds its category here, e.g. SettingsCategory.TTS -> TtsSettingsScreen(onBack = back).
                     when (key.category) {
                         SettingsCategory.TRANSLATE -> TranslateSettingsScreen(onBack = back)
+                        SettingsCategory.TTS -> TtsSettingsScreen(onBack = back)
                         else -> PlaceholderSettingsScreen(key.category, onBack = back)
                     }
                 }

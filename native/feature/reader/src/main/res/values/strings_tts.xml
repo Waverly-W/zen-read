@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_tts_listen">Read aloud</string>
+    <string name="reader_tts_read_from_here">Read aloud from here</string>
+    <string name="reader_tts_play">Play</string>
+    <string name="reader_tts_pause">Pause</string>
+    <string name="reader_tts_previous">Previous sentence</string>
+    <string name="reader_tts_next">Next sentence</string>
+    <string name="reader_tts_stop">Stop reading aloud</string>
+    <string name="reader_tts_speed">Speed</string>
+    <string name="reader_tts_sleep_timer">Sleep timer</string>
+    <string name="reader_tts_sleep_off">Off</string>
+    <string name="reader_tts_sleep_minutes">%d min</string>
+    <string name="reader_tts_sleep_end_of_chapter">End of chapter</string>
+    <string name="reader_tts_error_configuration">Read aloud is not set up. Check the voice service in Settings › Read aloud.</string>
+    <string name="reader_tts_error_network">Could not reach the voice service. Check your connection, then tap play to retry.</string>
+    <string name="reader_tts_error_http">The voice service refused the request (HTTP %d). Tap play to retry.</string>
+    <string name="reader_tts_error_engine">No text-to-speech engine is available, or this page has no text to read.</string>
+    <string name="reader_tts_error_audio">The voice service returned audio that could not be played.</string>
+</resources>

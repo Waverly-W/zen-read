@@ -78,6 +78,14 @@ sealed interface ReaderEvent {
      * @param prefetchPages > 0 for speculative requests for pages ahead.
      */
     data class TranslateRequest(val text: String, val generation: Long?, val prefetchPages: Int) : ReaderEvent
+    /** Read aloud (phase 3): the speech cursor entered the chapter [chapterTitle]. */
+    data class TtsChapter(val chapterTitle: String) : ReaderEvent
+
+    /**
+     * Read aloud (phase 3): position of the sentence being spoken. Sent even while the page is
+     * hidden, so progress can be saved when the screen is off.
+     */
+    data class TtsProgress(val cfi: String, val fraction: Float) : ReaderEvent
 
     companion object {
         fun parse(name: String, args: JsonArray): ReaderEvent? {
@@ -101,6 +109,12 @@ sealed interface ReaderEvent {
                             ?.takeIf { it >= 0 && it == Math.floor(it) }?.toLong(),
                         prefetchPages = (args.getOrNull(2) as? JsonPrimitive)?.doubleOrNull?.toInt() ?: 0,
                     )
+                    }
+                "onTtsChapter" -> (first as? JsonObject)?.string("chapterTitle")?.let(::TtsChapter)
+                "onTtsProgress" -> (first as? JsonObject)?.let { progress ->
+                    val cfi = progress.string("cfi") ?: return@let null
+                    val fraction = progress.float("percentage")?.takeIf { it.isFinite() } ?: return@let null
+                    TtsProgress(cfi, fraction.coerceIn(0f, 1f))
                 }
                 else -> null
             }
