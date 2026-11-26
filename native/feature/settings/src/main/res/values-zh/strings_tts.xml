@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_settings_engine">语音引擎</string>
+    <string name="tts_settings_engine_system">系统</string>
+    <string name="tts_settings_engine_edge">Edge</string>
+    <string name="tts_settings_engine_openai">OpenAI</string>
+    <string name="tts_settings_engine_system_summary">使用本机安装的文字转语音引擎。下载离线语音后可离线使用。</string>
+    <string name="tts_settings_engine_edge_summary">Microsoft Edge 在线语音。免费、无需密钥，但需要联网。</string>
+    <string name="tts_settings_engine_openai_summary">任意兼容 OpenAI 的语音服务（/audio/speech）。需要 API 密钥，服务商可能按用量计费。</string>
+    <string name="tts_settings_system_open">系统文字转语音设置</string>
+    <string name="tts_settings_voice">音色</string>
+    <string name="tts_settings_voice_change">点按选择音色</string>
+    <string name="tts_settings_voice_default">系统默认</string>
+    <string name="tts_settings_voice_search">按名称或语言搜索</string>
+    <string name="tts_settings_voice_failed">无法加载音色列表。</string>
+    <string name="tts_settings_voice_empty">没有匹配的音色。</string>
+    <string name="tts_settings_voice_online">需联网</string>
+    <string name="tts_settings_retry">重试</string>
+    <string name="tts_settings_preview">试听</string>
+    <string name="tts_settings_preview_stop">停止试听</string>
+    <string name="tts_settings_preview_failed">无法播放试听。</string>
+    <string name="tts_settings_preview_sample">这是朗读书籍时的声音效果。</string>
+    <string name="tts_settings_speech">语速与音调</string>
+    <string name="tts_settings_rate">语速</string>
+    <string name="tts_settings_pitch">音调</string>
+    <string name="tts_settings_pitch_unsupported">旧版 tts-1 模型不支持调整音调。</string>
+    <string name="tts_settings_openai">OpenAI 兼容服务</string>
+    <string name="tts_settings_openai_base_url">接口地址</string>
+    <string name="tts_settings_openai_base_url_hint">例如 https://api.openai.com/v1，会自动补上 /audio/speech。</string>
+    <string name="tts_settings_openai_model">模型</string>
+    <string name="tts_settings_openai_voice">音色</string>
+    <string name="tts_settings_openai_key">API 密钥</string>
+    <string name="tts_settings_openai_key_saved">已保存（已隐藏）</string>
+    <string name="tts_settings_openai_key_hint">加密保存在本机。</string>
+    <string name="tts_settings_openai_key_save">保存密钥</string>
+    <string name="tts_settings_openai_key_remove">删除密钥</string>
+    <string name="tts_settings_sleep_timer">定时关闭</string>
+    <string name="tts_settings_sleep_timer_summary">每次开始听书时生效，播放中也可以在播放条上随时修改。</string>
+    <string name="tts_settings_sleep_off">关闭</string>
+    <string name="tts_settings_sleep_minutes">%d 分钟</string>
+    <string name="tts_settings_sleep_end_of_chapter">本章结束后</string>
+</resources>

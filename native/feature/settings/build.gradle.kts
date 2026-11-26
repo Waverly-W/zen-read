@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "com.zenread.feature.settings"
 }
+
+dependencies {
+    implementation(project(":data:tts"))
+}

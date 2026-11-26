@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.HorizontalFloatingToolbar
@@ -59,6 +60,9 @@ internal fun ReaderChrome(
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
     onSeek: (Float) -> Unit,
+    /** Read aloud (phase 3); hidden when null. */
+    onListen: (() -> Unit)? = null,
+    listening: Boolean = false,
 ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -124,6 +128,11 @@ internal fun ReaderChrome(
                     }
                     IconButton(onClick = onTypography) {
                         Icon(Icons.Rounded.FormatSize, stringResource(R.string.reader_typography))
+                    }
+                    if (onListen != null) {
+                        IconToggleButton(checked = listening, onCheckedChange = { onListen() }) {
+                            Icon(Icons.Rounded.Headphones, stringResource(R.string.reader_tts_listen))
+                        }
                     }
                     IconButton(onClick = onNextChapter) {
                         Icon(Icons.Rounded.SkipNext, stringResource(R.string.reader_next_chapter))

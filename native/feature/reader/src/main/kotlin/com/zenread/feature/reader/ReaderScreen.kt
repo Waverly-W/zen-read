@@ -49,6 +49,9 @@ import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
+import com.zenread.feature.reader.tts.ReaderTtsBar
+import com.zenread.feature.reader.tts.ReaderTtsViewModel
+import com.zenread.feature.reader.tts.rememberReaderTts
 import com.zenread.reader.engine.ReaderBridge
 import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
@@ -85,6 +88,10 @@ fun ReaderScreen(
     var controller by remember { mutableStateOf<ReaderController?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
     val context = LocalContext.current
+    // Read aloud (phase 3).
+    val ttsViewModel: ReaderTtsViewModel = hiltViewModel()
+    val ttsState by ttsViewModel.state.collectAsStateWithLifecycle()
+    val tts = rememberReaderTts(state.book, controller, state.ready, viewModel.ttsChapters, ttsViewModel)
     val copy = { text: String ->
         context.getSystemService(ClipboardManager::class.java)
             ?.setPrimaryClip(ClipData.newPlainText(state.book?.title.orEmpty(), text))
@@ -157,6 +164,22 @@ fun ReaderScreen(
                 .padding(horizontal = 24.dp, vertical = 4.dp),
         )
 
+        ReaderTtsBar(
+            visible = tts.active && !state.chromeVisible,
+            state = ttsState,
+            onTogglePlay = ttsViewModel::togglePlayPause,
+            onPrevious = ttsViewModel::previous,
+            onNext = ttsViewModel::next,
+            onStop = ttsViewModel::stop,
+            onRate = ttsViewModel::setRate,
+            onSleepTimer = ttsViewModel::setSleepTimer,
+            onDismissError = ttsViewModel::clearError,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
+                .padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
+        )
+
         state.selection?.let { selection ->
             SelectionMenu(
                 rect = selection.rect,
@@ -192,6 +215,12 @@ fun ReaderScreen(
             onPrevChapter = { controller?.prevSection() },
             onNextChapter = { controller?.nextSection() },
             onSeek = { controller?.goToPercent(it) },
+            onListen = {
+                // Hiding the menu reveals the player bar.
+                viewModel.setChromeVisible(false)
+                if (!tts.active) tts.start()
+            },
+            listening = tts.active,
         )
     }
 

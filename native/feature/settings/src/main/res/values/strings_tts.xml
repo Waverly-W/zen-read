@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tts_settings_engine">Voice engine</string>
+    <string name="tts_settings_engine_system">System</string>
+    <string name="tts_settings_engine_edge">Edge</string>
+    <string name="tts_settings_engine_openai">OpenAI</string>
+    <string name="tts_settings_engine_system_summary">Uses the text-to-speech engine installed on this device. Works offline with downloaded voices.</string>
+    <string name="tts_settings_engine_edge_summary">Microsoft Edge online voices. Free and needs no key, but needs an internet connection.</string>
+    <string name="tts_settings_engine_openai_summary">Any OpenAI-compatible speech service (/audio/speech). Needs an API key; usage may be billed by the provider.</string>
+    <string name="tts_settings_system_open">System text-to-speech settings</string>
+    <string name="tts_settings_voice">Voice</string>
+    <string name="tts_settings_voice_change">Tap to choose a voice</string>
+    <string name="tts_settings_voice_default">System default</string>
+    <string name="tts_settings_voice_search">Search by name or language</string>
+    <string name="tts_settings_voice_failed">Could not load the voices.</string>
+    <string name="tts_settings_voice_empty">No matching voices.</string>
+    <string name="tts_settings_voice_online">needs internet</string>
+    <string name="tts_settings_retry">Retry</string>
+    <string name="tts_settings_preview">Play sample</string>
+    <string name="tts_settings_preview_stop">Stop sample</string>
+    <string name="tts_settings_preview_failed">The sample could not be played.</string>
+    <string name="tts_settings_preview_sample">This is how books will sound when read aloud.</string>
+    <string name="tts_settings_speech">Speed and pitch</string>
+    <string name="tts_settings_rate">Speed</string>
+    <string name="tts_settings_pitch">Pitch</string>
+    <string name="tts_settings_pitch_unsupported">The legacy tts-1 models do not support pitch.</string>
+    <string name="tts_settings_openai">OpenAI-compatible service</string>
+    <string name="tts_settings_openai_base_url">Base URL</string>
+    <string name="tts_settings_openai_base_url_hint">For example https://api.openai.com/v1. /audio/speech is added automatically.</string>
+    <string name="tts_settings_openai_model">Model</string>
+    <string name="tts_settings_openai_voice">Voice</string>
+    <string name="tts_settings_openai_key">API key</string>
+    <string name="tts_settings_openai_key_saved">Saved (hidden)</string>
+    <string name="tts_settings_openai_key_hint">Stored encrypted on this device.</string>
+    <string name="tts_settings_openai_key_save">Save key</string>
+    <string name="tts_settings_openai_key_remove">Remove key</string>
+    <string name="tts_settings_sleep_timer">Sleep timer</string>
+    <string name="tts_settings_sleep_timer_summary">Applied each time read aloud starts. You can change it from the player at any time.</string>
+    <string name="tts_settings_sleep_off">Off</string>
+    <string name="tts_settings_sleep_minutes">%d min</string>
+    <string name="tts_settings_sleep_end_of_chapter">End of chapter</string>
+</resources>

@@ -43,6 +43,12 @@ class ReaderBridge(
             val name = call["name"]?.jsonPrimitive?.content ?: return@addWebMessageListener
             val args = call["args"]?.jsonArray ?: JsonArray(emptyList())
             Log.v(TAG, "call $name")
+            if (name == ReaderController.ASYNC_RESULT) {
+                // Results of ReaderController.evaluateAsync: complete them right here, in order.
+                ReaderController.deliverAsyncResult(args)
+                reply.postMessage(buildJsonObject { put("id", id); put("result", JsonNull) }.toString())
+                return@addWebMessageListener
+            }
             scope.launch {
                 val response = try {
                     val result = handler(name, args) ?: JsonNull
