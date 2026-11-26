@@ -5,6 +5,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
@@ -49,13 +55,13 @@ import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
+import com.zenread.feature.reader.ai.AiPanelRequest
+import com.zenread.feature.reader.ai.ReaderAiHost
 import com.zenread.feature.reader.translate.ReaderTranslationLayer
 import com.zenread.feature.reader.translate.ReaderTranslationViewModel
 import com.zenread.feature.reader.tts.ReaderTtsBar
 import com.zenread.feature.reader.tts.ReaderTtsViewModel
 import com.zenread.feature.reader.tts.rememberReaderTts
-import com.zenread.feature.reader.ai.AiPanelRequest
-import com.zenread.feature.reader.ai.ReaderAiHost
 import com.zenread.reader.engine.ReaderBridge
 import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
@@ -149,8 +155,13 @@ fun ReaderScreen(
             )
         }
 
-        if (state.error == null && !state.ready) {
-            LoadingIndicator(Modifier.align(Alignment.Center))
+        AnimatedVisibility(
+            visible = state.error == null && !state.ready,
+            enter = fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            LoadingIndicator()
         }
         state.error?.let { error ->
             ReaderErrorState(
@@ -191,8 +202,9 @@ fun ReaderScreen(
                 .padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
         )
 
-        state.selection?.let { selection ->
+        rememberLastNonNull(state.selection)?.let { selection ->
             SelectionMenu(
+                visible = state.selection != null,
                 rect = selection.rect,
                 overlapsMarks = selection.annotationIds.isNotEmpty(),
                 onMark = viewModel::markSelection,
@@ -210,8 +222,9 @@ fun ReaderScreen(
                 },
             )
         }
-        state.tapped?.let { (annotation, rect) ->
+        rememberLastNonNull(state.tapped)?.let { (annotation, rect) ->
             AnnotationMenu(
+                visible = state.tapped != null,
                 rect = rect,
                 type = annotation.type,
                 color = annotation.color,
@@ -378,8 +391,14 @@ private fun ReaderWebView(
         if (state.ready) ReaderController(webView).changeStyle(styleFor(settings, theme))
     }
 
+    // The page fades in once foliate-js has laid it out, instead of popping in after the spinner.
+    val pageAlpha by animateFloatAsState(
+        targetValue = if (state.ready) 1f else 0f,
+        animationSpec = MaterialTheme.motionScheme.slowEffectsSpec(),
+        label = "page-alpha",
+    )
     if (state.error != ReaderError.RENDERER_GONE) {
-        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize().graphicsLayer { alpha = pageAlpha })
     }
 }
 

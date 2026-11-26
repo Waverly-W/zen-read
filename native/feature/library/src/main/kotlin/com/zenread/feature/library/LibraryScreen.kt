@@ -55,15 +55,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.NavKey
 import coil3.compose.AsyncImage
 import com.zenread.core.designsystem.component.EmptyState
 import com.zenread.core.model.Book
 import java.io.File
-import kotlinx.serialization.Serializable
-
-@Serializable
-data object LibraryKey : NavKey
 
 @Composable
 fun LibraryScreen(

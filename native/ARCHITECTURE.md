@@ -218,3 +218,11 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 - 导入和下载的文件放在 `filesDir/fonts/`，文件名是内容 SHA-256 的前 16 位加扩展名，用户的原文件名不会进入文件系统；显示名称记在 `filesDir/fonts-index.json`。页面通过 `/fonts/<文件名>` 读取已安装字体，通过 `/fonts/bundled/<文件名>` 读取 APK `assets/fonts/` 中的内置字体；只接受单段、合法的字体文件名。
 - 只内置 65 KB 的 Atkinson Hyperlegible Next。中文字体体积大（11–14 MB），改为按需下载，链接固定到具体提交并校验 SHA-256。上游 Flutter 自带的思源宋体是裁剪过的子集，却仍沿用保留字体名，不符合 OFL，因此不带。
 - `reader-fonts.js` 有一处本地修改，见 `reader/engine/src/main/assets/reader/UPSTREAM.md`。
+
+## 12. 动效
+
+所有转场和弹出动画都来自 `core:designsystem` 的 `ZenMotion`，不要在各功能里另写。
+
+- **页面转场**：根导航栈是「主页 → 阅读页 / 设置详情」。推入和返回用 Material 共享 X 轴（滑动 30dp）；手势返回用同一套动作，再加上离开页面缩小到 90%；主页内切换标签用淡入穿越。底部导航栏属于主页，会随主页整体滑走，因此阅读页在打开过程中不会因导航栏消失而改变尺寸、触发重新分页。
+- **曲线**：位移用主题 `MotionScheme` 的 Expressive 弹簧。淡入淡出用 Material 的短时长：旧内容 90 ms 内淡出，新内容随后用 210 ms 淡入，避免默认 700 ms 交叉淡化那种两层半透明叠在一起的生硬感。
+- **弹出元素**：阅读页顶栏和底栏、听书条用 `enterFromTop` / `enterFromBottom`；选区菜单和标注菜单用 `popIn` / `popOut`，状态清空后由 `rememberLastNonNull` 保留内容，直到退场动画结束；可折叠区块用 `expand` / `collapse`；阅读页正文在 foliate-js 排版完成后淡入。

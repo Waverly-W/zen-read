@@ -1,10 +1,6 @@
 package com.zenread.feature.reader.tts
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.zenread.core.designsystem.motion.ZenMotion
 import com.zenread.data.tts.SleepTimerOption
 import com.zenread.data.tts.TtsException
 import com.zenread.data.tts.TtsPlaybackState
@@ -70,8 +67,8 @@ internal fun ReaderTtsBar(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
+        enter = ZenMotion.enterFromBottom,
+        exit = ZenMotion.exitToBottom,
         modifier = modifier,
     ) {
         Column(

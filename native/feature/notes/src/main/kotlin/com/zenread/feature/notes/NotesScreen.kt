@@ -60,17 +60,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation3.runtime.NavKey
 import com.zenread.core.designsystem.component.EmptyState
 import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.Annotation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-
-@Serializable
-data object NotesKey : NavKey
 
 @Composable
 fun NotesScreen(

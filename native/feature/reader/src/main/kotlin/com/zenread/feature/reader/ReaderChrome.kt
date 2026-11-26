@@ -1,10 +1,6 @@
 package com.zenread.feature.reader
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zenread.core.designsystem.component.ZenSlider
+import com.zenread.core.designsystem.motion.ZenMotion
 import kotlin.math.roundToInt
 
 @Composable
@@ -72,8 +69,8 @@ internal fun ReaderChrome(
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
             visible = visible,
-            enter = slideInVertically { -it } + fadeIn(),
-            exit = slideOutVertically { -it } + fadeOut(),
+            enter = ZenMotion.enterFromTop,
+            exit = ZenMotion.exitToTop,
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             TopAppBar(
@@ -120,8 +117,8 @@ internal fun ReaderChrome(
 
         AnimatedVisibility(
             visible = visible,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut(),
+            enter = ZenMotion.enterFromBottom,
+            exit = ZenMotion.exitToBottom,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Column(

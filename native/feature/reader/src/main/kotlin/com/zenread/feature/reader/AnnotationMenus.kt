@@ -1,5 +1,6 @@
 package com.zenread.feature.reader
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +41,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.zenread.core.designsystem.motion.ZenMotion
 import com.zenread.core.model.AnnotationType
 import com.zenread.core.model.HighlightColor
 import com.zenread.reader.engine.PageRect
@@ -46,6 +49,7 @@ import com.zenread.reader.engine.PageRect
 /** Menu shown for a fresh text selection. */
 @Composable
 internal fun SelectionMenu(
+    visible: Boolean,
     rect: PageRect,
     overlapsMarks: Boolean,
     onMark: (AnnotationType, HighlightColor) -> Unit,
@@ -57,7 +61,7 @@ internal fun SelectionMenu(
     onReadAloud: (() -> Unit)? = null,
     onAskAi: (() -> Unit)? = null,
 ) {
-    AnchoredMenu(rect) {
+    AnchoredMenu(rect, visible) {
         MenuCard {
             ColorRow(selected = null) { onMark(AnnotationType.HIGHLIGHT, it) }
             HorizontalDivider(Modifier.padding(horizontal = 12.dp))
@@ -89,6 +93,7 @@ internal fun SelectionMenu(
 /** Menu shown when an existing highlight or underline is tapped. */
 @Composable
 internal fun AnnotationMenu(
+    visible: Boolean,
     rect: PageRect,
     type: AnnotationType,
     color: String,
@@ -98,7 +103,7 @@ internal fun AnnotationMenu(
     onDelete: () -> Unit,
 ) {
     val current = HighlightColor.entries.firstOrNull { it.hex.equals(color, ignoreCase = true) }
-    AnchoredMenu(rect) {
+    AnchoredMenu(rect, visible) {
         MenuCard {
             ColorRow(selected = current) { onRestyle(type, it) }
             HorizontalDivider(Modifier.padding(horizontal = 12.dp))
@@ -164,17 +169,24 @@ internal fun hexColor(hex: String) = Color(0xFF000000 or (hex.toLongOrNull(16) ?
 /**
  * Places its single child just above [rect] (normalized page coordinates), or below it
  * when there is no room above. Only the child takes touches; the page stays interactive.
+ * The child pops in and out with [ZenMotion.popIn] / [ZenMotion.popOut].
  */
 @Composable
-private fun AnchoredMenu(rect: PageRect, content: @Composable () -> Unit) {
+private fun AnchoredMenu(rect: PageRect, visible: Boolean, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val gap = with(density) { 12.dp.roundToPx() }
     val edge = with(density) { 8.dp.roundToPx() }
     val topSafe = WindowInsets.statusBarsIgnoringVisibility.getTop(density) + edge
-    Layout(content = content) { measurables, constraints ->
+    Layout(
+        content = {
+            AnimatedVisibility(visible = visible, enter = ZenMotion.popIn, exit = ZenMotion.popOut) { content() }
+        },
+    ) { measurables, constraints ->
         val width = constraints.maxWidth
         val height = constraints.maxHeight
-        val menu = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+        // Nothing to place once the exit animation has finished.
+        val menu = measurables.firstOrNull()?.measure(constraints.copy(minWidth = 0, minHeight = 0))
+            ?: return@Layout layout(width, height) {}
         val centerX = ((rect.left + rect.right) / 2f * width).toInt()
         val x = (centerX - menu.width / 2).coerceIn(edge, (width - menu.width - edge).coerceAtLeast(edge))
         val above = (rect.top * height).toInt() - menu.height - gap
@@ -182,4 +194,16 @@ private fun AnchoredMenu(rect: PageRect, content: @Composable () -> Unit) {
         val y = if (above >= topSafe) above else below.coerceAtMost(height - menu.height - edge)
         layout(width, height) { menu.place(x, y) }
     }
+}
+
+/**
+ * The last non-null [value], so a popup can keep showing its content while it animates out
+ * after the state that drove it was cleared.
+ */
+@Composable
+internal fun <T : Any> rememberLastNonNull(value: T?): T? {
+    val last = remember { arrayOfNulls<Any>(1) }
+    if (value != null) last[0] = value
+    @Suppress("UNCHECKED_CAST")
+    return last[0] as T?
 }

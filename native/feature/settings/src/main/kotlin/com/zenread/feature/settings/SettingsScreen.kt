@@ -33,9 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
-@Serializable
-data object SettingsKey : NavKey
-
 /** Top-level settings pages. Each phase routes its category to its own screen in the app module. */
 enum class SettingsCategory { APPEARANCE, READING, SYNC, AI, TTS, TRANSLATE, ABOUT }
 
