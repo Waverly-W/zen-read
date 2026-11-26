@@ -49,5 +49,9 @@ gradlePlugin {
             id = "zenread.jvm.library"
             implementationClass = "JvmLibraryConventionPlugin"
         }
+        register("robolectric") {
+            id = "zenread.robolectric"
+            implementationClass = "RobolectricConventionPlugin"
+        }
     }
 }

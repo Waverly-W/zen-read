@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.zenread.core.model.Annotation
 import com.zenread.core.model.AnnotationType
+import java.util.UUID
 
 @Entity(
     tableName = "annotations",
@@ -19,7 +20,10 @@ import com.zenread.core.model.AnnotationType
         ),
     ],
     // One mark per range and type; re-marking the same text updates it.
-    indices = [Index(value = ["book_id", "type", "cfi"], unique = true)],
+    indices = [
+        Index(value = ["book_id", "type", "cfi"], unique = true),
+        Index(value = ["uuid"], unique = true),
+    ],
 )
 data class AnnotationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -33,6 +37,8 @@ data class AnnotationEntity(
     val position: Float,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    /** Stable id shared by every device (sync identity). Added in schema v3. */
+    @ColumnInfo(defaultValue = "''") val uuid: String = UUID.randomUUID().toString(),
 )
 
 fun AnnotationEntity.asModel() = Annotation(
