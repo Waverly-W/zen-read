@@ -73,13 +73,13 @@ internal fun SelectionMenu(
                 if (onAskAi != null) {
                     IconButton(onClick = onAskAi) { Icon(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_ask)) }
                 }
-                if (overlapsMarks) {
-                    IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.reader_delete_mark)) }
-                }
                 if (onReadAloud != null) {
                     IconButton(onClick = onReadAloud) {
                         Icon(Icons.Rounded.Headphones, stringResource(R.string.reader_tts_read_from_here))
                     }
+                }
+                if (overlapsMarks) {
+                    IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.reader_delete_mark)) }
                 }
             }
         }

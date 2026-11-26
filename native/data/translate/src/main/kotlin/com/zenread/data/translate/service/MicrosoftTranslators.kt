@@ -27,7 +27,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-/** Request and response shape shared by the official and the Edge endpoints (Translator v3). */
+/** Request and response shape of the Translator v3 API. */
 internal object MicrosoftApi {
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
@@ -112,80 +112,5 @@ class MicrosoftTranslator(
         const val KEY = "api_key"
         const val REGION = "region"
         private const val ENDPOINT = "https://api.cognitive.microsofttranslator.com/translate"
-    }
-}
-
-/**
- * Microsoft Translator through the token Microsoft Edge uses for its built-in page
- * translation: `GET edge.microsoft.com/translate/auth` returns a short-lived JWT that the
- * Translator v3 API accepts as a bearer token. No key needed.
- *
- * Unofficial: Microsoft may change or restrict the token endpoint.
- */
-@Singleton
-class MicrosoftEdgeTranslator(
-    private val client: OkHttpClient,
-    private val json: Json,
-    private val authUrl: HttpUrl,
-    private val endpoint: HttpUrl,
-    private val now: () -> Long = System::currentTimeMillis,
-) : BatchTranslator() {
-    @Inject constructor(client: OkHttpClient, json: Json) :
-        this(client, json, AUTH_URL.toHttpUrl(), ENDPOINT.toHttpUrl())
-
-    override val descriptor = TranslatorDescriptor(
-        id = ID,
-        label = R.string.translate_service_microsoft_free,
-        order = 1,
-        detectsLanguage = true,
-        maxBatchItems = MicrosoftApi.MAX_ITEMS,
-        maxBatchChars = MicrosoftApi.MAX_CHARS,
-        minRequestIntervalMillis = 200,
-    )
-
-    private val tokenLock = Mutex()
-    private var token: String? = null
-    private var tokenExpiresAt = 0L
-
-    override suspend fun translateBatch(
-        texts: List<String>,
-        from: Language?,
-        to: Language,
-        credentials: Credentials,
-    ): List<Translation> = try {
-        request(texts, from, to, token(refresh = false))
-    } catch (e: TranslateException) {
-        // The token may have been revoked before its nominal expiry: refresh once.
-        if (e.reason != TranslateException.Reason.UNAUTHORIZED) throw e
-        request(texts, from, to, token(refresh = true))
-    }
-
-    private suspend fun request(texts: List<String>, from: Language?, to: Language, bearer: String): List<Translation> {
-        val request = Request.Builder()
-            .url(MicrosoftApi.url(endpoint, from, to))
-            .header("Authorization", "Bearer $bearer")
-            .post(MicrosoftApi.body(texts))
-            .build()
-        return MicrosoftApi.parse(ID, client.fetchJson(json, ID, request), texts.size)
-    }
-
-    private suspend fun token(refresh: Boolean): String = tokenLock.withLock {
-        val cached = token
-        if (!refresh && cached != null && now() < tokenExpiresAt) return cached
-        val fresh = client.fetchText(ID, Request.Builder().url(authUrl).get().build()).trim()
-        // A JWT has three dot-separated parts; anything else is an error page.
-        if (fresh.count { it == '.' } != 2 || fresh.any { it.isWhitespace() }) throw badResponse(ID)
-        token = fresh
-        tokenExpiresAt = now() + TOKEN_LIFETIME_MILLIS
-        fresh
-    }
-
-    companion object {
-        const val ID = "microsoft_free"
-        private const val AUTH_URL = "https://edge.microsoft.com/translate/auth"
-        private const val ENDPOINT = "https://api-edge.cognitive.microsofttranslator.com/translate"
-
-        /** Tokens last 10 minutes; renew a little early. */
-        private const val TOKEN_LIFETIME_MILLIS = 8 * 60 * 1000L
     }
 }

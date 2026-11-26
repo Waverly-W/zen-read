@@ -3,7 +3,6 @@ package com.zenread.data.translate
 import com.zenread.data.translate.service.DeepLTranslator
 import com.zenread.data.translate.service.GoogleCloudTranslator
 import com.zenread.data.translate.service.GoogleFreeTranslator
-import com.zenread.data.translate.service.MicrosoftEdgeTranslator
 import com.zenread.data.translate.service.MicrosoftTranslator
 import dagger.Binds
 import dagger.Module
@@ -21,9 +20,6 @@ abstract class TranslateModule {
 
     @Binds @IntoSet
     abstract fun googleFree(impl: GoogleFreeTranslator): Translator
-
-    @Binds @IntoSet
-    abstract fun microsoftFree(impl: MicrosoftEdgeTranslator): Translator
 
     @Binds @IntoSet
     abstract fun microsoft(impl: MicrosoftTranslator): Translator

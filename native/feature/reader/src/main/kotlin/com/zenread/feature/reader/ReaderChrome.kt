@@ -147,13 +147,13 @@ internal fun ReaderChrome(
                             Icon(Icons.Rounded.Headphones, stringResource(R.string.reader_tts_listen))
                         }
                     }
-                    IconButton(onClick = onNextChapter) {
-                        Icon(Icons.Rounded.SkipNext, stringResource(R.string.reader_next_chapter))
-                    }
                     if (onAskAi != null) {
                         IconButton(onClick = onAskAi) {
                             Icon(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_ask))
                         }
+                    }
+                    IconButton(onClick = onNextChapter) {
+                        Icon(Icons.Rounded.SkipNext, stringResource(R.string.reader_next_chapter))
                     }
                 }
             }

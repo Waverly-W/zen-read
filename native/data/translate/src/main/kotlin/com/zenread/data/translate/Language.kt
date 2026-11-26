@@ -95,7 +95,7 @@ object LanguageCodes {
         else -> language.code
     }
 
-    /** Microsoft Translator (official and Edge). */
+    /** Microsoft Translator. */
     fun microsoft(language: Language): String = when (language) {
         Language.SIMPLIFIED_CHINESE -> "zh-Hans"
         Language.TRADITIONAL_CHINESE -> "zh-Hant"

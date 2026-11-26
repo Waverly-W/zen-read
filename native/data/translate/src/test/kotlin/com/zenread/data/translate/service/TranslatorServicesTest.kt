@@ -131,64 +131,6 @@ class MicrosoftTranslatorTest : ServiceTest() {
     }
 }
 
-class MicrosoftEdgeTranslatorTest : ServiceTest() {
-    private var clock = 0L
-    private fun translator() = MicrosoftEdgeTranslator(client, json, server.url("/auth"), server.url("/translate"), now = { clock })
-
-    @Test
-    fun fetchesTokenOnceAndReusesIt() = runBlocking {
-        val t = translator()
-        respond("aaa.bbb.ccc")
-        respond("""[{"translations":[{"text":"Hallo"}]}]""")
-        respond("""[{"translations":[{"text":"Welt"}]}]""")
-
-        assertEquals("Hallo", t.translate(listOf("Hello"), null, Language.GERMAN, Credentials.NONE).single().text)
-        assertEquals("Welt", t.translate(listOf("World"), null, Language.GERMAN, Credentials.NONE).single().text)
-
-        assertEquals("/auth", take().url.encodedPath)
-        val first = take()
-        assertEquals("/translate", first.url.encodedPath)
-        assertEquals("Bearer aaa.bbb.ccc", first.headers["Authorization"])
-        assertEquals("de", first.url.queryParameter("to"))
-        assertEquals("Bearer aaa.bbb.ccc", take().headers["Authorization"])
-        assertEquals(3, server.requestCount)
-    }
-
-    @Test
-    fun refreshesExpiredToken() = runBlocking {
-        val t = translator()
-        respond("aaa.bbb.ccc")
-        respond("""[{"translations":[{"text":"Hallo"}]}]""")
-        t.translate(listOf("Hello"), null, Language.GERMAN, Credentials.NONE)
-        clock += 9 * 60 * 1000L
-        respond("ddd.eee.fff")
-        respond("""[{"translations":[{"text":"Welt"}]}]""")
-        t.translate(listOf("World"), null, Language.GERMAN, Credentials.NONE)
-        repeat(3) { take() }
-        assertEquals("Bearer ddd.eee.fff", take().headers["Authorization"])
-    }
-
-    @Test
-    fun retriesOnceWithFreshTokenAfter401() = runBlocking {
-        val t = translator()
-        respond("aaa.bbb.ccc")
-        respond("", code = 401)
-        respond("ddd.eee.fff")
-        respond("""[{"translations":[{"text":"Hallo"}]}]""")
-
-        assertEquals("Hallo", t.translate(listOf("Hello"), null, Language.GERMAN, Credentials.NONE).single().text)
-        assertEquals(4, server.requestCount)
-    }
-
-    @Test
-    fun htmlInsteadOfTokenIsBadResponse() = runBlocking {
-        respond("<html>blocked</html>")
-        val error = runCatching { translator().translate(listOf("Hi"), null, Language.GERMAN, Credentials.NONE) }
-            .exceptionOrNull() as TranslateException
-        assertEquals(TranslateException.Reason.BAD_RESPONSE, error.reason)
-    }
-}
-
 class DeepLTranslatorTest : ServiceTest() {
     private fun translator() = DeepLTranslator(client, json, server.url("/free/v2/translate"), server.url("/pro/v2/translate"))
 

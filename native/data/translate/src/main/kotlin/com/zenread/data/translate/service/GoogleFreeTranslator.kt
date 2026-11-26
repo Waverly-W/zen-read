@@ -19,8 +19,9 @@ import okhttp3.Request
 
 /**
  * Google's key-free web endpoint (`client=gtx`). Port of upstream `microsoft_free.dart`, which
- * despite its name has called this Google endpoint since ReadAny; see `MicrosoftEdgeTranslator`
- * for the actual Microsoft free service.
+ * despite its name has called this Google endpoint since ReadAny. Microsoft's own key-free
+ * route (Edge's `edge.microsoft.com/translate/auth` token) returns 404 since late 2026 and is
+ * not offered.
  *
  * Unofficial: Google may throttle or block it at any time (HTTP 429 / connection reset).
  */

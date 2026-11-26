@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="translate_service_google_free">Google 翻译（免费）</string>
-    <string name="translate_service_microsoft_free">微软翻译（免费）</string>
     <string name="translate_service_microsoft">微软翻译（API 密钥）</string>
     <string name="translate_service_deepl">DeepL</string>
     <string name="translate_service_google_cloud">Google Cloud 翻译</string>
