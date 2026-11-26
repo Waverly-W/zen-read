@@ -3,4 +3,7 @@
     <string name="note_editor_title">Note</string>
     <string name="note_editor_hint">Write down your thoughts</string>
     <string name="note_editor_save">Save</string>
+    <string name="indent_book">Book</string>
+    <string name="indent_none">None</string>
+    <string name="indent_chars">%1$d em</string>
 </resources>

@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.zenread.core.datastore.ReaderSettingsRepository
+import com.zenread.core.designsystem.component.IndentSelector
 import com.zenread.core.designsystem.component.ZenSlider
 import com.zenread.core.model.PageTurnStyle
 import com.zenread.core.model.ReaderSettings
@@ -116,6 +117,24 @@ private fun LayoutSection(settings: ReaderSettings, onChange: ((ReaderSettings) 
                 onValueChange = { v -> onChange { it.copy(lineHeight = (v * 10).roundToInt() / 10f) } },
                 valueRange = ReaderSettings.LINE_HEIGHT_MIN..ReaderSettings.LINE_HEIGHT_MAX,
                 steps = 13,
+            )
+        }
+        Labeled(
+            R.string.settings_reading_paragraph_spacing,
+            String.format(Locale.ROOT, "%.2f", settings.paragraphSpacing).trimEnd('0').trimEnd('.') + " em",
+        ) {
+            ZenSlider(
+                value = settings.paragraphSpacing,
+                onValueChange = { v -> onChange { it.copy(paragraphSpacing = (v * 4).roundToInt() / 4f) } },
+                valueRange = ReaderSettings.PARAGRAPH_SPACING_MIN..ReaderSettings.PARAGRAPH_SPACING_MAX,
+                steps = 11,
+            )
+        }
+        Labeled(R.string.settings_reading_text_indent, null) {
+            IndentSelector(
+                value = settings.textIndent,
+                options = ReaderSettings.TEXT_INDENT_OPTIONS,
+                onSelect = { v -> onChange { it.copy(textIndent = v) } },
             )
         }
         Labeled(R.string.settings_reading_margins, "${settings.sideMargin.roundToInt()}%") {

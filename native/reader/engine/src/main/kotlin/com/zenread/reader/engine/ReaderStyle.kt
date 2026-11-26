@@ -25,6 +25,8 @@ object ReaderStyle {
         // Layout and typography the user controls.
         put("fontSize", settings.fontScale)
         put("spacing", settings.lineHeight)
+        put("paragraphSpacing", settings.paragraphSpacing)
+        put("textIndent", settings.textIndent)
         put("sideMargin", settings.sideMargin)
         put("pageTurnStyle", settings.pageTurn.jsName)
         put("fontColor", theme.text)
@@ -44,8 +46,6 @@ object ReaderStyle {
         // Fixed for now.
         put("simulateBold", false)
         put("letterSpacing", 0)
-        put("paragraphSpacing", 1.0)
-        put("textIndent", 0)
         put("headingFontSize", 1.0)
         put("justify", true)
         put("hyphenate", false)

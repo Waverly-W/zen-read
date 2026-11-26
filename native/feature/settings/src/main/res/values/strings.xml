@@ -92,4 +92,6 @@
     <string name="settings_reading_turn_slide">Slide</string>
     <string name="settings_reading_turn_scroll">Scroll</string>
     <string name="settings_reading_turn_none">Instant</string>
+    <string name="settings_reading_paragraph_spacing">Paragraph spacing</string>
+    <string name="settings_reading_text_indent">First-line indent</string>
 </resources>

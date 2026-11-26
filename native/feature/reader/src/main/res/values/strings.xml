@@ -34,4 +34,6 @@
     <string name="reader_bookmark_add">Bookmark this page</string>
     <string name="reader_bookmark_remove">Remove bookmark</string>
     <string name="reader_error_download">This book is in your sync folder but could not be downloaded. Check the connection and sync settings.</string>
+    <string name="reader_paragraph_spacing">Paragraph spacing</string>
+    <string name="reader_text_indent">First-line indent</string>
 </resources>

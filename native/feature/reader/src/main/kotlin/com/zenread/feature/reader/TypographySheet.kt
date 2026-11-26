@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import com.zenread.core.designsystem.component.IndentSelector
 import com.zenread.core.designsystem.component.ZenSlider
 import com.zenread.core.model.PageTurnStyle
 import com.zenread.core.model.ReaderSettings
@@ -90,6 +91,23 @@ internal fun TypographySheet(
                     onValueChange = { v -> onChange { it.copy(lineHeight = (v * 10).roundToInt() / 10f) } },
                     valueRange = ReaderSettings.LINE_HEIGHT_MIN..ReaderSettings.LINE_HEIGHT_MAX,
                     steps = 13,
+                )
+            }
+
+            Section(R.string.reader_paragraph_spacing, value = emLabel(settings.paragraphSpacing)) {
+                ZenSlider(
+                    value = settings.paragraphSpacing,
+                    onValueChange = { v -> onChange { it.copy(paragraphSpacing = (v * 4).roundToInt() / 4f) } },
+                    valueRange = ReaderSettings.PARAGRAPH_SPACING_MIN..ReaderSettings.PARAGRAPH_SPACING_MAX,
+                    steps = 11,
+                )
+            }
+
+            Section(R.string.reader_text_indent) {
+                IndentSelector(
+                    value = settings.textIndent,
+                    options = ReaderSettings.TEXT_INDENT_OPTIONS,
+                    onSelect = { v -> onChange { it.copy(textIndent = v) } },
                 )
             }
 
@@ -164,3 +182,7 @@ private fun ThemeSwatch(theme: ReadingTheme, selected: Boolean, onClick: () -> U
 }
 
 private fun String.toColor() = Color(toColorInt())
+
+/** 1.25 → "1.25 em", 1.0 → "1 em". */
+internal fun emLabel(value: Float): String =
+    String.format(Locale.ROOT, "%.2f", value).trimEnd('0').trimEnd('.') + " em"

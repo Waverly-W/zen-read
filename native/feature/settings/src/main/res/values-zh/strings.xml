@@ -86,10 +86,12 @@
     <!-- Reading page (settings.reading) -->
     <string name="settings_reading_layout">排版</string>
     <string name="settings_reading_font_size">字号</string>
-    <string name="settings_reading_line_height">行距</string>
+    <string name="settings_reading_line_height">行间距</string>
     <string name="settings_reading_margins">页边距</string>
     <string name="settings_reading_page_turn">翻页方式</string>
     <string name="settings_reading_turn_slide">滑动</string>
     <string name="settings_reading_turn_scroll">滚动</string>
     <string name="settings_reading_turn_none">无动画</string>
+    <string name="settings_reading_paragraph_spacing">段间距</string>
+    <string name="settings_reading_text_indent">首行缩进</string>
 </resources>

@@ -3,4 +3,7 @@
     <string name="note_editor_title">笔记</string>
     <string name="note_editor_hint">写下你的想法</string>
     <string name="note_editor_save">保存</string>
+    <string name="indent_book">原书</string>
+    <string name="indent_none">无</string>
+    <string name="indent_chars">%1$d 字</string>
 </resources>

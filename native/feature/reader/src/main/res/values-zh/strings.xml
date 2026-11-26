@@ -11,7 +11,7 @@
     <string name="reader_font_size">字号</string>
     <string name="reader_smaller">缩小</string>
     <string name="reader_larger">放大</string>
-    <string name="reader_line_height">行距</string>
+    <string name="reader_line_height">行间距</string>
     <string name="reader_margins">左右边距</string>
     <string name="reader_page_turn">翻页方式</string>
     <string name="reader_turn_slide">滑动</string>
@@ -34,4 +34,6 @@
     <string name="reader_bookmark_add">为本页加书签</string>
     <string name="reader_bookmark_remove">移除书签</string>
     <string name="reader_error_download">这本书在同步文件夹中，但下载失败。请检查网络和同步设置。</string>
+    <string name="reader_paragraph_spacing">段间距</string>
+    <string name="reader_text_indent">首行缩进</string>
 </resources>

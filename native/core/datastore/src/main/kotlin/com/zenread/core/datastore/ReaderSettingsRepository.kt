@@ -33,6 +33,8 @@ class ReaderSettingsRepository @Inject constructor(
             val next = transform(prefs.toSettings())
             prefs[FONT_SCALE] = next.fontScale
             prefs[LINE_HEIGHT] = next.lineHeight
+            prefs[PARAGRAPH_SPACING] = next.paragraphSpacing
+            prefs[TEXT_INDENT] = next.textIndent
             prefs[SIDE_MARGIN] = next.sideMargin
             prefs[PAGE_TURN] = next.pageTurn.name
             prefs[THEME] = next.theme.name
@@ -47,6 +49,8 @@ class ReaderSettingsRepository @Inject constructor(
         return ReaderSettings(
             fontScale = this[FONT_SCALE] ?: defaults.fontScale,
             lineHeight = this[LINE_HEIGHT] ?: defaults.lineHeight,
+            paragraphSpacing = this[PARAGRAPH_SPACING] ?: defaults.paragraphSpacing,
+            textIndent = this[TEXT_INDENT] ?: defaults.textIndent,
             sideMargin = this[SIDE_MARGIN] ?: defaults.sideMargin,
             pageTurn = this[PAGE_TURN].toEnum(defaults.pageTurn),
             theme = this[THEME].toEnum(defaults.theme),
@@ -60,6 +64,8 @@ class ReaderSettingsRepository @Inject constructor(
     private companion object {
         val FONT_SCALE = floatPreferencesKey("font_scale")
         val LINE_HEIGHT = floatPreferencesKey("line_height")
+        val PARAGRAPH_SPACING = floatPreferencesKey("paragraph_spacing")
+        val TEXT_INDENT = floatPreferencesKey("text_indent")
         val SIDE_MARGIN = floatPreferencesKey("side_margin")
         val PAGE_TURN = stringPreferencesKey("page_turn")
         val THEME = stringPreferencesKey("theme")

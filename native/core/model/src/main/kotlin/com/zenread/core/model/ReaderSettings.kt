@@ -25,6 +25,10 @@ data class ReaderSettings(
     /** Font size in em, relative to the book's base size. */
     val fontScale: Float = 1.2f,
     val lineHeight: Float = 1.8f,
+    /** Space between paragraphs in em (split above and below each paragraph). */
+    val paragraphSpacing: Float = 1.0f,
+    /** First-line indent in em (≈ CJK characters); [TEXT_INDENT_BOOK] keeps the book's own. */
+    val textIndent: Float = TEXT_INDENT_BOOK,
     /** Horizontal page gap in percent of page width. */
     val sideMargin: Float = 6f,
     val pageTurn: PageTurnStyle = PageTurnStyle.SLIDE,
@@ -41,6 +45,11 @@ data class ReaderSettings(
         const val FONT_SCALE_MAX = 2.4f
         const val LINE_HEIGHT_MIN = 1.2f
         const val LINE_HEIGHT_MAX = 2.6f
+        const val PARAGRAPH_SPACING_MIN = 0f
+        const val PARAGRAPH_SPACING_MAX = 3f
+        /** foliate-js leaves the publisher's indent alone for negative values. */
+        const val TEXT_INDENT_BOOK = -1f
+        val TEXT_INDENT_OPTIONS = listOf(TEXT_INDENT_BOOK, 0f, 1f, 2f, 3f)
         const val SIDE_MARGIN_MIN = 2f
         const val SIDE_MARGIN_MAX = 16f
         const val FONT_WEIGHT_MIN = 300
