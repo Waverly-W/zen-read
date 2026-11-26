@@ -9,4 +9,10 @@
     <string name="translate_field_region">区域</string>
     <string name="translate_field_region_hint">Azure 资源所在区域，例如 eastasia。全局资源留空即可。</string>
     <string name="translate_field_deepl_hint">免费版密钥以“:fx”结尾；专业版密钥会自动识别。</string>
+    <string name="translate_error_missing_credentials">此服务需要 API 密钥，请在“设置 › 翻译”中填写。</string>
+    <string name="translate_error_unauthorized">翻译服务拒绝了这个 API 密钥。</string>
+    <string name="translate_error_quota">已达到翻译服务的频率或额度上限。请稍后再试，或换用其他服务。</string>
+    <string name="translate_error_unavailable">无法连接翻译服务。请检查网络，或换用其他服务。</string>
+    <string name="translate_error_rejected">翻译服务拒绝了请求，可能不支持该语言。</string>
+    <string name="translate_error_bad_response">翻译服务返回了无法识别的结果。</string>
 </resources>

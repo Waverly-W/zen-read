@@ -133,6 +133,7 @@ class ReaderViewModel @AssistedInject constructor(
             }
             is ReaderEvent.BookmarkRequest -> onBookmarkRequest(event)
             is ReaderEvent.BookmarkState -> setBookmarkCfi(event.cfi)
+            is ReaderEvent.TranslateRequest -> Unit // Answered through the bridge by ReaderTranslationViewModel.
             ReaderEvent.AnnotationsWanted -> viewModelScope.launch {
                 // Wait for Room's first emission so a fresh page never gets an empty list.
                 val list = annotationRepository.observeForBook(bookId).first()

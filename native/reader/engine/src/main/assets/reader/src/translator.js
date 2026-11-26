@@ -1,3 +1,5 @@
+// Zen Read local change: #drain() requests up to CONCURRENT_JOBS visible paragraphs
+// concurrently instead of one by one, so the Kotlin host can batch them. See UPSTREAM.md.
 // Translation modes
 export const TranslationMode = {
   OFF: 'off',
@@ -22,6 +24,8 @@ const translate = async (text, sessionId, prefetchPages) => {
   }
 }
 
+// Zen Read: visible paragraphs requested concurrently; see #drain.
+const CONCURRENT_JOBS = 12
 const PREFETCH_CACHE_ENTRIES = 512
 const PREFETCH_CACHE_CHARACTERS = 512 * 1024
 
@@ -358,15 +362,20 @@ export class Translator {
           } finally { this.#prefetchActive = null }
           continue
         }
-        try {
-          if (job.generation === this.#generation && this.#isVisible(job.element)) {
-            await this.#translateElement(job.element, job.generation, job.sessionId)
+        // Zen Read: request up to CONCURRENT_JOBS visible paragraphs at once (upstream awaited
+        // one at a time) so the host can batch them into a single service request.
+        const jobs = [job, ...this.#queue.splice(0, CONCURRENT_JOBS - 1)]
+        await Promise.all(jobs.map(async job => {
+          try {
+            if (job.generation === this.#generation && this.#isVisible(job.element)) {
+              await this.#translateElement(job.element, job.generation, job.sessionId)
+            }
+          } finally {
+            if (job.generation === this.#generation) {
+              this.#pending.delete(job.element)
+            }
           }
-        } finally {
-          if (job.generation === this.#generation) {
-            this.#pending.delete(job.element)
-          }
-        }
+        }))
       }
     } finally { this.#running = false }
   }

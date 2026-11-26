@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.FormatUnderlined
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,7 @@ internal fun SelectionMenu(
     onNote: () -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
+    onTranslate: (() -> Unit)? = null,
 ) {
     AnchoredMenu(rect) {
         MenuCard {
@@ -60,6 +62,9 @@ internal fun SelectionMenu(
                 }
                 IconButton(onClick = onNote) { Icon(Icons.Rounded.EditNote, stringResource(R.string.reader_add_note)) }
                 IconButton(onClick = onCopy) { Icon(Icons.Rounded.ContentCopy, stringResource(R.string.reader_copy)) }
+                if (onTranslate != null) {
+                    IconButton(onClick = onTranslate) { Icon(Icons.Rounded.Translate, stringResource(R.string.reader_translate)) }
+                }
                 if (overlapsMarks) {
                     IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.reader_delete_mark)) }
                 }

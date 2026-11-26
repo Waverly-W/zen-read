@@ -13,3 +13,7 @@ note the change at the top of that file and list it below.
 - `src/paginator.js` — `uncollapse()`: a collapsed range at the end of a text node now
   measures from the start of the next text node. Before, restoring a page-start CFI that
   fell on a split text node opened the previous page.
+- `src/translator.js` — `#drain()`: visible paragraphs are requested up to `CONCURRENT_JOBS`
+  (12) at a time instead of strictly one after another, so the host (`data:translate`
+  `TranslationBatcher`) can send them to the translation service in one request. Prefetch
+  requests stay sequential.

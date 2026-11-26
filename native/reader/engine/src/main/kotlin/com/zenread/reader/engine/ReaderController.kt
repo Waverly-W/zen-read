@@ -49,6 +49,29 @@ class ReaderController(private val webView: WebView) {
     /** Asks foliate-js to bookmark the current page; it replies with a `BookmarkRequest`. */
     fun bookmarkCurrentPage() = call("addBookmarkHere()")
 
+    /**
+     * Turns paragraph translation on or off (upstream `translateCurrentChapter`). foliate-js then
+     * sends a [ReaderEvent.TranslateRequest] per visible paragraph, tagged with [generation].
+     *
+     * @param mode `off`, `bilingual` or `translation-only` (foliate-js `TranslationMode`).
+     * @param textStyle `{color, italic, bold, size, font}` for translated paragraphs, or null.
+     * @param clear drop translations already in the page (the service or language changed).
+     * @param prefetchPages pages ahead to pre-translate, 0–5.
+     */
+    fun setTranslation(mode: String, generation: Long, textStyle: JsonObject?, clear: Boolean, prefetchPages: Int) = call(
+        """
+        (async () => {
+          const view = reader.view
+          if (!view?.setTranslationMode) return
+          await view.setTranslationMode('off')
+          if (${textStyle != null}) view.setTranslationTextStyle?.(${textStyle ?: "null"})
+          if ($clear) view.clearTranslations?.()
+          await view.setTranslationMode(${JsonPrimitive(mode)}, $generation)
+          view.setTranslationPrefetchPages?.(${prefetchPages.coerceIn(0, 5)})
+        })().catch(e => console.warn(e))
+        """.trimIndent(),
+    )
+
     private fun call(script: String) {
         // Before onLoadEnd `reader` is undefined; swallow instead of surfacing JS errors.
         webView.evaluateJavascript("try { $script } catch (e) { console.warn(e) }", null)

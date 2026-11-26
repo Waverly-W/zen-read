@@ -9,4 +9,10 @@
     <string name="translate_field_region">Region</string>
     <string name="translate_field_region_hint">Azure resource region, e.g. eastasia. Leave empty for global resources.</string>
     <string name="translate_field_deepl_hint">Free-plan keys end in “:fx”; Pro keys are detected automatically.</string>
+    <string name="translate_error_missing_credentials">This service needs an API key. Add it in Settings › Translation.</string>
+    <string name="translate_error_unauthorized">The service rejected the API key.</string>
+    <string name="translate_error_quota">The service’s rate limit or quota was reached. Try again later or switch services.</string>
+    <string name="translate_error_unavailable">Can’t reach the translation service. Check your connection, or switch services.</string>
+    <string name="translate_error_rejected">The service refused the request. It may not support this language.</string>
+    <string name="translate_error_bad_response">The translation service sent an unexpected answer.</string>
 </resources>

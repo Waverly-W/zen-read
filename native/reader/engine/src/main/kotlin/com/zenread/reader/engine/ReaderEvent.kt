@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
@@ -67,6 +68,17 @@ sealed interface ReaderEvent {
     /** Bookmark on the current page after marks were (re)loaded; null when there is none. */
     data class BookmarkState(val cfi: String?) : ReaderEvent
 
+    /**
+     * foliate-js `translator.js` asks for the translation of one paragraph (upstream
+     * `translateText` handler). The host answers through the bridge's return value: the
+     * translated string, or null to skip the paragraph. Never sent unless the host turned
+     * translation on with [ReaderController.setTranslation].
+     *
+     * @param generation the session id passed to `setTranslationMode`; stale ids must get null.
+     * @param prefetchPages > 0 for speculative requests for pages ahead.
+     */
+    data class TranslateRequest(val text: String, val generation: Long?, val prefetchPages: Int) : ReaderEvent
+
     companion object {
         fun parse(name: String, args: JsonArray): ReaderEvent? {
             val first = args.firstOrNull()
@@ -82,6 +94,14 @@ sealed interface ReaderEvent {
                 "handleBookmark" -> (first as? JsonObject)?.toBookmarkRequest()
                 "renderAnnotations" -> AnnotationsWanted
                 ReaderController.BOOKMARK_STATE -> BookmarkState((first as? JsonObject)?.string("cfi"))
+                "translateText" -> (first as? JsonPrimitive)?.takeIf { it.isString }?.let { text ->
+                    TranslateRequest(
+                        text = text.content,
+                        generation = (args.getOrNull(1) as? JsonPrimitive)?.doubleOrNull
+                            ?.takeIf { it >= 0 && it == Math.floor(it) }?.toLong(),
+                        prefetchPages = (args.getOrNull(2) as? JsonPrimitive)?.doubleOrNull?.toInt() ?: 0,
+                    )
+                }
                 else -> null
             }
         }

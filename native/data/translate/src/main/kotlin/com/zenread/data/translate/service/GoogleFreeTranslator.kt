@@ -39,7 +39,7 @@ class GoogleFreeTranslator(
         detectsLanguage = true,
         maxBatchItems = 1,
         maxBatchChars = 4_500,
-        minRequestIntervalMillis = 300,
+        minRequestIntervalMillis = 150,
     )
 
     override suspend fun translateBatch(

@@ -12,4 +12,5 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
+    implementation(project(":data:translate"))
 }

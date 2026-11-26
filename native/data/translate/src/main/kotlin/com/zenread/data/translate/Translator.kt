@@ -118,3 +118,14 @@ class TranslateException(
         )
     }
 }
+
+/** A user-facing explanation for a failure reason; never includes service output. */
+val TranslateException.Reason.messageRes: Int
+    @StringRes get() = when (this) {
+        TranslateException.Reason.MISSING_CREDENTIALS -> R.string.translate_error_missing_credentials
+        TranslateException.Reason.UNAUTHORIZED -> R.string.translate_error_unauthorized
+        TranslateException.Reason.QUOTA -> R.string.translate_error_quota
+        TranslateException.Reason.UNAVAILABLE -> R.string.translate_error_unavailable
+        TranslateException.Reason.REJECTED -> R.string.translate_error_rejected
+        TranslateException.Reason.BAD_RESPONSE -> R.string.translate_error_bad_response
+    }

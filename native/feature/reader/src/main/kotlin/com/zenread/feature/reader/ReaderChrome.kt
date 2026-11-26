@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +60,8 @@ internal fun ReaderChrome(
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
     onSeek: (Float) -> Unit,
+    translating: Boolean = false,
+    onToggleTranslation: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -88,6 +91,14 @@ internal fun ReaderChrome(
                     }
                 },
                 actions = {
+                    if (onToggleTranslation != null) {
+                        IconToggleButton(checked = translating, onCheckedChange = { onToggleTranslation() }) {
+                            Icon(
+                                Icons.Rounded.Translate,
+                                stringResource(if (translating) R.string.reader_translate_page_off else R.string.reader_translate_page_on),
+                            )
+                        }
+                    }
                     IconToggleButton(checked = bookmarked, onCheckedChange = { onToggleBookmark() }) {
                         Icon(
                             if (bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,

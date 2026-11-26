@@ -49,6 +49,8 @@ import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
+import com.zenread.feature.reader.translate.ReaderTranslationLayer
+import com.zenread.feature.reader.translate.ReaderTranslationViewModel
 import com.zenread.reader.engine.ReaderBridge
 import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
@@ -82,6 +84,8 @@ fun ReaderScreen(
     ImmersiveSystemBars(showBars = state.chromeVisible, darkPage = theme == ReadingTheme.NIGHT)
 
     val annotations by viewModel.annotations.collectAsStateWithLifecycle()
+    val translation: ReaderTranslationViewModel = hiltViewModel()
+    val pageTranslation by translation.page.collectAsStateWithLifecycle()
     var controller by remember { mutableStateOf<ReaderController?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
     val context = LocalContext.current
@@ -165,6 +169,7 @@ fun ReaderScreen(
                 onNote = viewModel::noteOnSelection,
                 onCopy = { copy(selection.text); viewModel.clearSelection() },
                 onDelete = viewModel::deleteMarksInSelection,
+                onTranslate = { translation.translateSelection(selection.text); viewModel.clearSelection() },
             )
         }
         state.tapped?.let { (annotation, rect) ->
@@ -192,7 +197,14 @@ fun ReaderScreen(
             onPrevChapter = { controller?.prevSection() },
             onNextChapter = { controller?.nextSection() },
             onSeek = { controller?.goToPercent(it) },
+            translating = pageTranslation.active || pageTranslation.starting,
+            // foliate-js translates reflowable text only; PDF and CBZ pages are images or fixed text layers.
+            onToggleTranslation = translation::togglePage.takeIf {
+                state.book?.format.let { it != null && it != BookFormat.PDF && it != BookFormat.CBZ }
+            },
         )
+
+        ReaderTranslationLayer(viewModel = translation, controller = controller, theme = theme, pageReady = state.ready)
     }
 
     when (sheet) {
@@ -249,6 +261,7 @@ private fun ReaderWebView(
     val scope = rememberCoroutineScope()
     val currentOnTap by rememberUpdatedState(onTap)
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val translation: ReaderTranslationViewModel = hiltViewModel()
 
     // Space for status/navigation bars, in CSS px (= dp in WebView), constant whether or
     // not the bars are showing, so toggling the menu never re-paginates.
@@ -267,6 +280,7 @@ private fun ReaderWebView(
                 when (event) {
                     null -> Unit
                     is ReaderEvent.Tap -> currentOnTap(event.x)
+                    is ReaderEvent.TranslateRequest -> return@ReaderBridge translation.answer(event)
                     else -> viewModel.onEvent(event)
                 }
                 null

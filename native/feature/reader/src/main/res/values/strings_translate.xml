@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_translate">Translate</string>
+    <string name="reader_translate_copy">Copy</string>
+    <string name="reader_translate_retry">Try again</string>
+    <string name="reader_translate_page_on">Show translations</string>
+    <string name="reader_translate_page_off">Hide translations</string>
+    <string name="reader_translate_stopped">Translation stopped. %1$s</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_translate">翻译</string>
+    <string name="reader_translate_copy">复制</string>
+    <string name="reader_translate_retry">重试</string>
+    <string name="reader_translate_page_on">显示对照翻译</string>
+    <string name="reader_translate_page_off">关闭对照翻译</string>
+    <string name="reader_translate_stopped">翻译已停止。%1$s</string>
+</resources>
