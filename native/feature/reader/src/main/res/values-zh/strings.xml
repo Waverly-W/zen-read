@@ -22,4 +22,15 @@
     <string name="reader_error_webview">系统 WebView 版本过低，无法打开书籍。请在应用商店更新“Android System WebView”。</string>
     <string name="reader_error_load">这本书无法打开。</string>
     <string name="reader_error_crash">阅读器意外停止。</string>
+    <string name="reader_tab_notes">笔记</string>
+    <string name="reader_tab_bookmarks">书签</string>
+    <string name="reader_notes_empty">选中文字即可高亮或写笔记。</string>
+    <string name="reader_bookmarks_empty">点顶部的书签图标，为当前页加书签。</string>
+    <string name="reader_underline">下划线</string>
+    <string name="reader_highlight">高亮</string>
+    <string name="reader_add_note">笔记</string>
+    <string name="reader_copy">复制</string>
+    <string name="reader_delete_mark">删除标注</string>
+    <string name="reader_bookmark_add">为本页加书签</string>
+    <string name="reader_bookmark_remove">移除书签</string>
 </resources>

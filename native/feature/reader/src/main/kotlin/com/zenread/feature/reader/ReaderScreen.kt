@@ -1,7 +1,10 @@
 package com.zenread.feature.reader
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.webkit.WebView
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -42,6 +45,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
@@ -53,18 +57,20 @@ import com.zenread.reader.engine.ReaderStyle
 import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
 
+/** Opens [bookId]; [cfi] jumps to a location (e.g. a note) instead of the saved position. */
 @Serializable
-data class ReaderKey(val bookId: Long) : NavKey
+data class ReaderKey(val bookId: Long, val cfi: String? = null) : NavKey
 
 private enum class Sheet { TOC, TYPOGRAPHY }
 
 @Composable
 fun ReaderScreen(
     bookId: Long,
+    openAt: String?,
     onBack: () -> Unit,
     viewModel: ReaderViewModel = hiltViewModel<ReaderViewModel, ReaderViewModel.Factory>(
-        key = "reader-$bookId",
-        creationCallback = { it.create(bookId) },
+        key = "reader-$bookId-$openAt",
+        creationCallback = { it.create(bookId, openAt) },
     ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -75,8 +81,35 @@ fun ReaderScreen(
 
     ImmersiveSystemBars(showBars = state.chromeVisible, darkPage = theme == ReadingTheme.NIGHT)
 
+    val annotations by viewModel.annotations.collectAsStateWithLifecycle()
     var controller by remember { mutableStateOf<ReaderController?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    val context = LocalContext.current
+    val copy = { text: String ->
+        context.getSystemService(ClipboardManager::class.java)
+            ?.setPrimaryClip(ClipData.newPlainText(state.book?.title.orEmpty(), text))
+        Unit
+    }
+
+    // Apply the view model's page commands once a page exists. The channel buffers
+    // anything sent while the WebView is being (re)built.
+    LaunchedEffect(controller) {
+        val page = controller ?: return@LaunchedEffect
+        viewModel.commands.collect { command ->
+            when (command) {
+                is PageCommand.ReplaceAnnotations -> page.replaceAnnotations(command.annotations)
+                is PageCommand.Show -> page.showAnnotation(command.annotation)
+                is PageCommand.Hide -> page.hideAnnotation(command.cfi)
+                is PageCommand.GoTo -> page.goToCfi(command.cfi)
+                PageCommand.ClearSelection -> page.clearSelection()
+                PageCommand.BookmarkHere -> page.bookmarkCurrentPage()
+            }
+        }
+    }
+
+    BackHandler(enabled = state.selection != null || state.tapped != null) {
+        if (state.tapped != null) viewModel.dismissTapped() else viewModel.clearSelection()
+    }
 
     Box(Modifier.fillMaxSize().background(pageColor)) {
         val bookUrl = state.bookUrl
@@ -89,6 +122,10 @@ fun ReaderScreen(
                 theme = theme,
                 onController = { controller = it },
                 onTap = { x ->
+                    if (state.tapped != null) {
+                        viewModel.dismissTapped()
+                        return@ReaderWebView
+                    }
                     when (tapAction(x, state.chromeVisible)) {
                         TapAction.PREV -> controller?.prevPage()
                         TapAction.NEXT -> controller?.nextPage()
@@ -120,8 +157,32 @@ fun ReaderScreen(
                 .padding(horizontal = 24.dp, vertical = 4.dp),
         )
 
+        state.selection?.let { selection ->
+            SelectionMenu(
+                rect = selection.rect,
+                overlapsMarks = selection.annotationIds.isNotEmpty(),
+                onMark = viewModel::markSelection,
+                onNote = viewModel::noteOnSelection,
+                onCopy = { copy(selection.text); viewModel.clearSelection() },
+                onDelete = viewModel::deleteMarksInSelection,
+            )
+        }
+        state.tapped?.let { (annotation, rect) ->
+            AnnotationMenu(
+                rect = rect,
+                type = annotation.type,
+                color = annotation.color,
+                onRestyle = { type, color -> viewModel.restyle(annotation, type, color) },
+                onNote = { viewModel.editNote(annotation) },
+                onCopy = { copy(annotation.text); viewModel.dismissTapped() },
+                onDelete = { viewModel.deleteAnnotation(annotation) },
+            )
+        }
+
         ReaderChrome(
             visible = state.chromeVisible && state.ready,
+            bookmarked = state.location?.bookmarkCfi != null,
+            onToggleBookmark = viewModel::toggleBookmark,
             title = state.book?.title.orEmpty(),
             chapter = state.location?.chapterTitle,
             fraction = state.location?.fraction ?: 0f,
@@ -138,10 +199,15 @@ fun ReaderScreen(
         Sheet.TOC -> TocSheet(
             items = state.toc,
             currentHref = state.location?.chapterHref,
+            annotations = annotations,
             onSelect = { item ->
                 sheet = null
                 viewModel.setChromeVisible(false)
                 controller?.goToHref(item.href)
+            },
+            onOpenAnnotation = { annotation ->
+                sheet = null
+                viewModel.goTo(annotation.cfi)
             },
             onDismiss = { sheet = null },
         )
@@ -153,6 +219,18 @@ fun ReaderScreen(
             )
         }
         null -> Unit
+    }
+
+    state.editingNoteId?.let { id ->
+        annotations.firstOrNull { it.id == id }?.let { annotation ->
+            NoteEditorSheet(
+                quote = annotation.text,
+                initialNote = annotation.note.orEmpty(),
+                accent = hexColor(annotation.color),
+                onSave = { viewModel.saveNote(id, it) },
+                onDismiss = viewModel::dismissNoteEditor,
+            )
+        }
     }
 }
 

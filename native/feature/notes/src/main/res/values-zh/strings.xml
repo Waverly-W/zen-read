@@ -2,5 +2,15 @@
 <resources>
     <string name="notes_title">笔记</string>
     <string name="notes_empty_title">还没有笔记</string>
-    <string name="notes_empty_body">所有书里的高亮、笔记和书签都会集中显示在这里。</string>
+    <string name="notes_empty_body">阅读时选中文字，就能高亮或写笔记。所有标注都会集中显示在这里。</string>
+    <plurals name="notes_count">
+        <item quantity="other">%d 条笔记</item>
+    </plurals>
+    <string name="notes_export">导出</string>
+    <string name="notes_share_markdown">以 Markdown 分享</string>
+    <string name="notes_save_markdown">保存为 Markdown 文件</string>
+    <string name="notes_exported">笔记已导出</string>
+    <string name="notes_export_failed">文件保存失败</string>
+    <string name="notes_edit">编辑笔记</string>
+    <string name="notes_delete">删除</string>
 </resources>

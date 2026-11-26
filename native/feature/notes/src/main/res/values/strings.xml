@@ -2,5 +2,16 @@
 <resources>
     <string name="notes_title">Notes</string>
     <string name="notes_empty_title">No notes yet</string>
-    <string name="notes_empty_body">Highlights, notes and bookmarks from all your books will appear here.</string>
+    <string name="notes_empty_body">Select text while reading to highlight it or add a note. Everything you mark appears here.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <string name="notes_export">Export</string>
+    <string name="notes_share_markdown">Share as Markdown</string>
+    <string name="notes_save_markdown">Save as Markdown file</string>
+    <string name="notes_exported">Notes exported</string>
+    <string name="notes_export_failed">Could not save the file</string>
+    <string name="notes_edit">Edit note</string>
+    <string name="notes_delete">Delete</string>
 </resources>

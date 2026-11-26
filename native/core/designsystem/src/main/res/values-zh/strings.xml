@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="note_editor_title">笔记</string>
+    <string name="note_editor_hint">写下你的想法</string>
+    <string name="note_editor_save">保存</string>
+</resources>

@@ -22,4 +22,15 @@
     <string name="reader_error_webview">The system WebView is too old to open books. Update “Android System WebView” from the Play Store.</string>
     <string name="reader_error_load">This book could not be opened.</string>
     <string name="reader_error_crash">The reader stopped unexpectedly.</string>
+    <string name="reader_tab_notes">Notes</string>
+    <string name="reader_tab_bookmarks">Bookmarks</string>
+    <string name="reader_notes_empty">Select text to highlight it or add a note.</string>
+    <string name="reader_bookmarks_empty">Tap the bookmark icon at the top to bookmark a page.</string>
+    <string name="reader_underline">Underline</string>
+    <string name="reader_highlight">Highlight</string>
+    <string name="reader_add_note">Note</string>
+    <string name="reader_copy">Copy</string>
+    <string name="reader_delete_mark">Remove mark</string>
+    <string name="reader_bookmark_add">Bookmark this page</string>
+    <string name="reader_bookmark_remove">Remove bookmark</string>
 </resources>

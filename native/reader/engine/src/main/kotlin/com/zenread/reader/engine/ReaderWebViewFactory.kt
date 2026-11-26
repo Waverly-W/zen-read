@@ -42,7 +42,7 @@ class ReaderWebViewFactory @Inject constructor(
             .addPathHandler(ReaderOrigin.BOOK_PATH, BookFileHandler(files))
             .build()
 
-        return WebView(context).apply {
+        return ReaderWebView(context).apply {
             // Must be MATCH_PARENT: a WRAP_CONTENT WebView (Compose's AndroidView default)
             // reports a 0px viewport height, so foliate-js's `100vh` layout collapses.
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)

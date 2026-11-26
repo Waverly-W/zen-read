@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="note_editor_title">Note</string>
+    <string name="note_editor_hint">Write down your thoughts</string>
+    <string name="note_editor_save">Save</string>
+</resources>

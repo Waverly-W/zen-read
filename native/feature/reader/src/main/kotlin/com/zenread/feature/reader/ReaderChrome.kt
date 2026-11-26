@@ -18,12 +18,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +48,8 @@ import kotlin.math.roundToInt
 @Composable
 internal fun ReaderChrome(
     visible: Boolean,
+    bookmarked: Boolean,
+    onToggleBookmark: () -> Unit,
     title: String,
     chapter: String?,
     fraction: Float,
@@ -80,6 +85,14 @@ internal fun ReaderChrome(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.reader_back))
+                    }
+                },
+                actions = {
+                    IconToggleButton(checked = bookmarked, onCheckedChange = { onToggleBookmark() }) {
+                        Icon(
+                            if (bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                            stringResource(if (bookmarked) R.string.reader_bookmark_remove else R.string.reader_bookmark_add),
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

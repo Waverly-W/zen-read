@@ -91,9 +91,9 @@ fun ZenReadApp() {
             entryProvider = entryProvider {
                 entry<LibraryKey> { LibraryScreen(onOpenBook = { backStack.add(ReaderKey(it)) }) }
                 entry<ReaderKey> { key ->
-                    ReaderScreen(bookId = key.bookId, onBack = { backStack.removeLastOrNull() })
+                    ReaderScreen(bookId = key.bookId, openAt = key.cfi, onBack = { backStack.removeLastOrNull() })
                 }
-                entry<NotesKey> { NotesScreen() }
+                entry<NotesKey> { NotesScreen(onOpen = { bookId, cfi -> backStack.add(ReaderKey(bookId, cfi)) }) }
                 entry<SettingsKey> { SettingsScreen(onOpenCategory = { /* Phase 1+ */ }) }
             },
         )

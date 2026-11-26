@@ -88,6 +88,9 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 - **只保存真实的翻页**。`onRelocated.readingAction` 为 true 时（翻页、跳转、手动滚动）才写库。窗口尺寸变化（如退出时底栏出现）引起的重新分页不保存，否则位置会漂移。
 - **保存点 CFI，不存区间 CFI**。foliate-js 用区间 CFI 表示一页，区间恰好从分页处开始时，恢复时会落到上一页。保存前用 `Cfi.collapseToStart` 收拢成起点；`paginator.js` 的 `uncollapse` 也做了相应修补。
 - PDF 和 CBZ 的“章节”就是单页，所以页脚显示整本书的页码。
+- **屏蔽系统选区工具栏**：`ReaderWebView` 让 ActionMode 的菜单保持为空，系统的「复制 / 全选」浮条就不会盖住应用自己的选区菜单，选区手柄照常可用。
+- **重开时补报书签状态**：foliate-js 只在翻页时上报当前页有没有书签，而第一次翻页事件比标注加载得早。所以 `replaceAnnotations` 绘制完后会自行判断一次，并通过宿主专用的 `zenBookmarkState` 回调上报。在 `evaluateJavascript` 里 `import()` 必须用绝对 URL，因为脚本的基准地址是 `about:blank`。
+- 标注表由 Room 从 v1 自动迁移到 v2，外键随书籍级联删除；绘制格式沿用上游的 `{id, value, type, color, note, hasReaderNote}`。
 
 ## 5. 数据与同步
 
@@ -107,7 +110,7 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 |---|---|---|
 | 0 骨架 | 多模块工程、约定插件、M3 Expressive 主题、导航框架 | 能编译运行，可在三个主标签页间切换 |
 | 1 能读 ✅ | 书籍导入、书架、foliate-js 宿主与 JS 桥、翻页、目录、排版设置、阅读进度 | 能打开 EPUB 和 PDF 并记住阅读位置（已在 API 36 模拟器上验证）。TXT 尚未支持：上游是在 Dart 中先转换为 EPUB，需要另行移植 |
-| 2 标注 | 选区菜单、高亮、笔记、书签、笔记页、导出 | 标注重启后仍在，能导出 Markdown |
+| 2 标注 ✅ | 选区菜单、高亮、笔记、书签、笔记页、导出 | 标注重启后仍在，能导出 Markdown（已在模拟器上验证） |
 | 3 听书 | 系统 TTS、Edge TTS、在线 TTS，Media3 通知 | 锁屏后能继续朗读，并能在通知栏控制 |
 | 4 翻译 | 选区翻译、段落对照翻译 | 可配置多个服务商 |
 | 5 AI | 对话、技能、RAG 索引与检索 | 能针对整本书提问并给出引用位置 |
