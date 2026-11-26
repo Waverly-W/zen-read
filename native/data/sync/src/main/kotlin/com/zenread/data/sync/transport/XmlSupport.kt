@@ -10,11 +10,15 @@ import org.w3c.dom.Node
 /** Namespace-aware DOM parsing with DTDs and external entities disabled. */
 internal object SafeXml {
     fun parse(bytes: ByteArray): Document {
+        // Android's DOM parser ignores the hardening features below (and throws on
+        // setXIncludeAware), so refuse DTDs outright: WebDAV and S3 responses never need one,
+        // and without a DTD there are no entities to expand.
+        if (containsDoctype(bytes)) throw SyncException.Protocol("XML response declares a DTD")
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
             isExpandEntityReferences = false
-            isXIncludeAware = false
-            // Not every platform parser knows every feature; each is best effort.
+            // Not every platform parser knows every option; each is best effort.
+            runCatching { isXIncludeAware = false }
             runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
             runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
             runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
@@ -26,6 +30,19 @@ internal object SafeXml {
             throw SyncException.Protocol("Malformed XML response")
         }
     }
+}
+
+/** True when the document has a `<!DOCTYPE` (ASCII, any case) anywhere. */
+internal fun containsDoctype(bytes: ByteArray): Boolean {
+    val needle = "<!doctype".toByteArray()
+    outer@ for (i in 0..bytes.size - needle.size) {
+        for (j in needle.indices) {
+            val b = bytes[i + j].toInt().toChar().lowercaseChar()
+            if (b != needle[j].toInt().toChar()) continue@outer
+        }
+        return true
+    }
+    return false
 }
 
 /** Child elements with this local name (and namespace, when given), in document order. */
