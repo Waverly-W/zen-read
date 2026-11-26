@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_ask">问 AI</string>
+    <string name="ai_panel_title">AI 助手</string>
+    <string name="ai_close">关闭</string>
+    <string name="ai_history">对话记录</string>
+    <string name="ai_new_chat">新对话</string>
+    <string name="ai_delete_chat">删除对话</string>
+    <string name="ai_input_hint">关于这本书，想问点什么</string>
+    <string name="ai_send">发送</string>
+    <string name="ai_stop">停止</string>
+    <string name="ai_regenerate">重新生成</string>
+    <string name="ai_copy">复制</string>
+    <string name="ai_thinking">思考过程</string>
+    <string name="ai_stopped">已停止</string>
+    <string name="ai_sources">出处</string>
+    <string name="ai_quote_label">选中的文字</string>
+    <string name="ai_remove_quote">移除选中的文字</string>
+    <string name="ai_empty_title">关于这本书，尽管问</string>
+    <string name="ai_empty_body">选择下方的阅读技能，或直接输入问题。只有在你提问时，当前章节才会发送给你配置的 AI 服务商。</string>
+    <string name="ai_not_configured_title">还没有 AI 服务商</string>
+    <string name="ai_not_configured_body">请在“设置 › AI”中添加服务商并选择对话模型。</string>
+    <string name="ai_error_auth">服务商拒绝了 API Key。</string>
+    <string name="ai_error_rate_limit">请求过于频繁，请稍后再试。</string>
+    <string name="ai_error_network">网络错误，请检查网络连接。</string>
+    <string name="ai_error_server">服务商出现问题，请稍后再试。</string>
+    <string name="ai_error_bad_request">服务商无法处理这个请求。</string>
+    <string name="ai_error_filtered">服务商拒绝回答。</string>
+    <string name="ai_error_not_configured">请在“设置 › AI”中选择对话模型。</string>
+    <string name="ai_error_other">出错了。</string>
+    <string name="ai_index_none">为本书建立索引后，可以针对全书提问并给出出处。</string>
+    <string name="ai_index_build">建立索引</string>
+    <string name="ai_index_queued">等待建立索引…</string>
+    <string name="ai_index_extracting">正在读取全书… %1$d / %2$d</string>
+    <string name="ai_index_embedding">正在向量化段落… %1$d / %2$d</string>
+    <plurals name="ai_index_ready">
+        <item quantity="other">已建立索引 · %1$d 个段落</item>
+    </plurals>
+    <plurals name="ai_index_ready_keywords">
+        <item quantity="other">已建立索引 · %1$d 个段落 · 关键词检索</item>
+    </plurals>
+    <string name="ai_index_paused">索引已暂停</string>
+    <string name="ai_index_failed">索引失败：%1$s</string>
+    <string name="ai_index_resume">继续</string>
+    <string name="ai_index_retry">重试</string>
+    <string name="ai_index_cancel">停止</string>
+    <string name="ai_index_rebuild">重建</string>
+    <string name="ai_index_no_embedding">未设置向量模型：索引只支持关键词检索。</string>
+</resources>

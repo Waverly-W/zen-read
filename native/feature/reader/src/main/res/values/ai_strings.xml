@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_ask">Ask AI</string>
+    <string name="ai_panel_title">AI assistant</string>
+    <string name="ai_close">Close</string>
+    <string name="ai_history">Conversations</string>
+    <string name="ai_new_chat">New conversation</string>
+    <string name="ai_delete_chat">Delete conversation</string>
+    <string name="ai_input_hint">Ask about this book</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_stop">Stop</string>
+    <string name="ai_regenerate">Regenerate</string>
+    <string name="ai_copy">Copy</string>
+    <string name="ai_thinking">Thinking</string>
+    <string name="ai_stopped">Stopped</string>
+    <string name="ai_sources">Sources</string>
+    <string name="ai_quote_label">Selected text</string>
+    <string name="ai_remove_quote">Remove selected text</string>
+    <string name="ai_empty_title">Ask anything about this book</string>
+    <string name="ai_empty_body">Pick a reading skill below or type a question. The current chapter is sent to your AI provider only when you ask.</string>
+    <string name="ai_not_configured_title">No AI provider yet</string>
+    <string name="ai_not_configured_body">Add a provider and choose a chat model in Settings › AI.</string>
+    <string name="ai_error_auth">The provider rejected the API key.</string>
+    <string name="ai_error_rate_limit">Too many requests. Wait a moment and try again.</string>
+    <string name="ai_error_network">Network error. Check your connection.</string>
+    <string name="ai_error_server">The provider had a problem. Try again later.</string>
+    <string name="ai_error_bad_request">The provider could not handle this request.</string>
+    <string name="ai_error_filtered">The provider declined to answer.</string>
+    <string name="ai_error_not_configured">Choose a chat model in Settings › AI.</string>
+    <string name="ai_error_other">Something went wrong.</string>
+    <string name="ai_index_none">Index the book to ask about all of it, with sources.</string>
+    <string name="ai_index_build">Index book</string>
+    <string name="ai_index_queued">Waiting to index…</string>
+    <string name="ai_index_extracting">Reading the book… %1$d / %2$d</string>
+    <string name="ai_index_embedding">Embedding passages… %1$d / %2$d</string>
+    <plurals name="ai_index_ready">
+        <item quantity="one">Book indexed · %1$d passage</item>
+        <item quantity="other">Book indexed · %1$d passages</item>
+    </plurals>
+    <plurals name="ai_index_ready_keywords">
+        <item quantity="one">Book indexed · %1$d passage · keyword search</item>
+        <item quantity="other">Book indexed · %1$d passages · keyword search</item>
+    </plurals>
+    <string name="ai_index_paused">Indexing paused</string>
+    <string name="ai_index_failed">Indexing failed: %1$s</string>
+    <string name="ai_index_resume">Resume</string>
+    <string name="ai_index_retry">Retry</string>
+    <string name="ai_index_cancel">Stop</string>
+    <string name="ai_index_rebuild">Rebuild</string>
+    <string name="ai_index_no_embedding">No embedding model: the index will use keyword search only.</string>
+</resources>

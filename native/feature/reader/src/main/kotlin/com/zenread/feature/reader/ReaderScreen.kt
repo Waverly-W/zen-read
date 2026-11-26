@@ -54,6 +54,8 @@ import com.zenread.feature.reader.translate.ReaderTranslationViewModel
 import com.zenread.feature.reader.tts.ReaderTtsBar
 import com.zenread.feature.reader.tts.ReaderTtsViewModel
 import com.zenread.feature.reader.tts.rememberReaderTts
+import com.zenread.feature.reader.ai.AiPanelRequest
+import com.zenread.feature.reader.ai.ReaderAiHost
 import com.zenread.reader.engine.ReaderBridge
 import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
@@ -91,6 +93,7 @@ fun ReaderScreen(
     val pageTranslation by translation.page.collectAsStateWithLifecycle()
     var controller by remember { mutableStateOf<ReaderController?>(null) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var aiPanel by remember { mutableStateOf<AiPanelRequest?>(null) }
     val context = LocalContext.current
     // Read aloud (phase 3).
     val ttsViewModel: ReaderTtsViewModel = hiltViewModel()
@@ -197,6 +200,10 @@ fun ReaderScreen(
                     tts.startFrom(selection.cfi)
                     viewModel.clearSelection()
                 },
+                onAskAi = {
+                    aiPanel = AiPanelRequest(quote = selection.text)
+                    viewModel.clearSelection()
+                },
             )
         }
         state.tapped?.let { (annotation, rect) ->
@@ -235,9 +242,27 @@ fun ReaderScreen(
                 if (!tts.active) tts.start()
             },
             listening = tts.active,
+            onAskAi = {
+                viewModel.setChromeVisible(false)
+                aiPanel = AiPanelRequest()
+            },
         )
 
         ReaderTranslationLayer(viewModel = translation, controller = controller, theme = theme, pageReady = state.ready)
+    }
+
+    aiPanel?.let { request ->
+        ReaderAiHost(
+            bookId = bookId,
+            request = request,
+            controller = controller,
+            chapterTitle = state.location?.chapterTitle,
+            onJump = { cfi ->
+                aiPanel = null
+                viewModel.goTo(cfi)
+            },
+            onDismiss = { aiPanel = null },
+        )
     }
 
     when (sheet) {

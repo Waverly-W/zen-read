@@ -9,4 +9,7 @@ android {
 dependencies {
     implementation(project(":data:translate"))
     implementation(project(":data:tts"))
+    // phase 5 (AI)
+    implementation(project(":data:ai"))
+    implementation(libs.androidx.activity.compose)
 }

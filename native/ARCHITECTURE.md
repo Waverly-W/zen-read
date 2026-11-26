@@ -104,6 +104,13 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 - RAG：章节文本由 foliate-js 抽取 → 分块 → 向量化（本地 ONNX 或在线 embedding API）→ 存入 SQLite（向量以 BLOB 保存，小规模直接暴力余弦检索；混合检索加 FTS5）。索引任务放在 WorkManager 中执行。
 - 技能（总结、解释、角色分析…）的提示词从上游 `readany_skills.dart` 迁移成资源文件。
 
+**阶段 5 实现说明**（`data:ai`）：
+
+- 对外 API 是 `ChatClient`（`stream` / `complete` / `embed` / `isConfigured`），翻译等功能直接复用；设置页另用 `ProviderAdmin`（拉取模型列表、测试连接）。
+- 对话记录存 `ai.db`；索引存 `ai_index.db`，用 `BundledSQLiteDriver`，因为平台 SQLite 不保证带 FTS5（bundled 版已确认启用 FTS5）。分块 id = `bookId * 1_000_000 + ordinal`，同时作为 FTS5 的 rowid。中文按单字 + 二元组写入 FTS5，不需要分词器。
+- 全书文本由 `BookTextExtractor` 在离屏 WebView 中以普通阅读模式打开书，轮询到 `reader.view.book` 就绪后，逐个 section 调用 `createDocument()`，并用 `view.getCFI(index, range)` 为每个段落生成 CFI（与 foliate-js 搜索结果的做法一致），所以引用能直接跳转。不依赖页面渲染完成。
+- 索引任务放在 WorkManager 中执行，通过 Hilt EntryPoint 获取依赖，不改应用的 WorkerFactory；任务被系统中断后会从已保存的分块和向量处续跑。
+
 ## 7. 路线图
 
 | 阶段 | 内容 | 完成标志 |

@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":feature:reader"))
     implementation(project(":feature:notes"))
     implementation(project(":feature:settings"))
+    implementation(project(":data:ai"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

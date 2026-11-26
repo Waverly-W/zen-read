@@ -6,6 +6,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -13,6 +16,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /** Commands into the page (functions `book.js` exposes on `window`). */
@@ -78,6 +83,22 @@ class ReaderController(private val webView: WebView) {
         })().catch(e => console.warn(e))
         """.trimIndent(),
     )
+
+    /**
+     * Plain text of the chapter on screen (whitespace collapsed), or null before the page is
+     * ready. Call on the main thread.
+     */
+    suspend fun chapterText(): String? = suspendCancellableCoroutine { cont ->
+        webView.evaluateJavascript(CHAPTER_TEXT_SCRIPT) { raw ->
+            val text = raw?.let { runCatching { Json.parseToJsonElement(it).jsonPrimitive.contentOrNull }.getOrNull() }
+            cont.resume(
+                text?.replace(Regex("[ \\t\\u00A0]+"), " ")
+                    ?.replace(Regex("\\s*\\n\\s*(\\n\\s*)+"), "\n\n")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() },
+            )
+        }
+    }
 
     private fun call(script: String) {
         // Before onLoadEnd `reader` is undefined; swallow instead of surfacing JS errors.
@@ -179,6 +200,31 @@ class ReaderController(private val webView: WebView) {
     data class TtsDetail(val text: String, val cfi: String?, val section: Int?)
 
     internal companion object {
+        /**
+         * Text of the displayed section with one line per block element. `theChapterContent()`
+         * (plain `textContent`) glues headings to the following paragraph; it stays the fallback.
+         */
+        const val CHAPTER_TEXT_SCRIPT = """(function () {
+  try {
+    const doc = reader.view.renderer.getContents?.()?.[0]?.doc
+    const body = doc && doc.body
+    if (!body) return theChapterContent()
+    const BLOCK = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,dt,dd,td,th,figcaption,div,section,article,aside'
+    const norm = s => (s || '').replace(/\s+/g, ' ').trim()
+    const all = norm(body.textContent)
+    const lines = []
+    let covered = 0
+    for (const el of body.querySelectorAll(BLOCK)) {
+      if (el.querySelector(BLOCK)) continue
+      const t = norm(el.textContent)
+      if (t) { lines.push(t); covered += t.length }
+    }
+    return covered >= all.length * 0.5 ? lines.join('\n\n') : all
+  } catch (e) {
+    try { return theChapterContent() } catch (e2) { return null }
+  }
+})()"""
+
         /** Host-only handler name; not part of upstream foliate-js. */
         const val BOOKMARK_STATE = "zenBookmarkState"
 

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
@@ -66,6 +67,7 @@ internal fun ReaderChrome(
     /** Read aloud (phase 3); hidden when null. */
     onListen: (() -> Unit)? = null,
     listening: Boolean = false,
+    onAskAi: (() -> Unit)? = null,
 ) {
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(
@@ -147,6 +149,11 @@ internal fun ReaderChrome(
                     }
                     IconButton(onClick = onNextChapter) {
                         Icon(Icons.Rounded.SkipNext, stringResource(R.string.reader_next_chapter))
+                    }
+                    if (onAskAi != null) {
+                        IconButton(onClick = onAskAi) {
+                            Icon(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_ask))
+                        }
                     }
                 }
             }

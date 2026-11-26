@@ -14,4 +14,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(project(":data:translate"))
+    // phase 5 (AI)
+    implementation(project(":data:ai"))
+    implementation(libs.markdown.renderer.m3)
 }
