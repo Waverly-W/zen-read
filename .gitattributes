@@ -1,0 +1,3 @@
+# Vendored foliate-js and PDF.js: keep them out of GitHub language stats.
+reader/engine/src/main/assets/** linguist-vendored
+core/database/schemas/** linguist-generated
