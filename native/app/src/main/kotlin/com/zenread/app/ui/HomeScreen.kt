@@ -5,9 +5,11 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +27,7 @@ import com.zenread.feature.library.LibraryScreen
 import com.zenread.feature.notes.NotesScreen
 import com.zenread.feature.settings.SettingsCategory
 import com.zenread.feature.settings.SettingsScreen
+import com.zenread.feature.stats.StatsScreen
 
 internal enum class HomeTab(
     @param:StringRes val label: Int,
@@ -33,11 +36,12 @@ internal enum class HomeTab(
 ) {
     LIBRARY(R.string.nav_library, Icons.Rounded.AutoStories, Icons.Outlined.AutoStories),
     NOTES(R.string.nav_notes, Icons.Rounded.EditNote, Icons.Outlined.EditNote),
+    STATS(R.string.nav_stats, Icons.Rounded.Insights, Icons.Outlined.Insights),
     SETTINGS(R.string.nav_settings, Icons.Rounded.Settings, Icons.Outlined.Settings),
 }
 
 /**
- * Library, notes and settings behind a navigation bar (rail on wide windows). Tabs switch
+ * Library, notes, statistics and settings behind a navigation bar (rail on wide windows). Tabs switch
  * with a fade through and keep their scroll position. [tab] is owned by the root so its
  * Back rule can depend on what is on top of the back stack (see `ZenReadApp`).
  */
@@ -79,6 +83,7 @@ internal fun HomeScreen(
                 when (current) {
                     HomeTab.LIBRARY -> LibraryScreen(onOpenBook = { onOpenBook(it, null) })
                     HomeTab.NOTES -> NotesScreen(onOpen = { bookId, cfi -> onOpenBook(bookId, cfi) })
+                    HomeTab.STATS -> StatsScreen(onOpenBook = { onOpenBook(it, null) })
                     HomeTab.SETTINGS -> SettingsScreen(onOpenCategory = onOpenSettings)
                 }
             }

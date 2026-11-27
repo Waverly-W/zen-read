@@ -150,6 +150,8 @@ ZenRead/v1/
 
 ### 5.5 调度
 
+注：阅读统计（v4 的 `reading_sessions`、`book_finishes`，见 §14）暂不参与同步，也不在 `SYNCED_TABLES` 中，写入不会触发同步；两张表都留了 `uuid` 列，以后可作为同步 id。
+
 `SyncManager` 用进程内互斥锁保证同一时间只有一次同步。WorkManager（均要求联网）：每小时一次、本地修改后 90 秒去抖（每次修改重置计时）、应用启动后 5 秒、同步进行中数据库有变化时之后再补一次；设置页的「立即同步」直接在应用作用域运行。坚果云的自动同步间隔至少 10 分钟，并在本机限制每 30 分钟 480 次请求；任何服务器返回 429/503 后按 Retry-After 或指数退避暂停。`SyncInitializer`（androidx.startup）在第一个 Activity 创建时启动调度，不改 `Application`。
 
 ## 6. AI 与 RAG
@@ -226,3 +228,30 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 - **页面转场**：根导航栈是「主页 → 阅读页 / 设置详情」。推入和返回用 Material 共享 X 轴（滑动 30dp）；手势返回用同一套动作，再加上离开页面缩小到 90%；主页内切换标签用淡入穿越。底部导航栏属于主页，会随主页整体滑走，因此阅读页在打开过程中不会因导航栏消失而改变尺寸、触发重新分页。
 - **曲线**：位移用主题 `MotionScheme` 的 Expressive 弹簧。淡入淡出用 Material 的短时长：旧内容 90 ms 内淡出，新内容随后用 210 ms 淡入，避免默认 700 ms 交叉淡化那种两层半透明叠在一起的生硬感。
 - **弹出元素**：阅读页顶栏和底栏、听书条用 `enterFromTop` / `enterFromBottom`；选区菜单和标注菜单用 `popIn` / `popOut`，状态清空后由 `rememberLastNonNull` 保留内容，直到退场动画结束；可折叠区块用 `expand` / `collapse`；阅读页正文在 foliate-js 排版完成后淡入。
+
+## 14. 阅读统计
+
+- **模块**：`data:stats`（计时器、聚合、`ReadingStatsRepository`）；`feature:stats`（主页「统计」标签）。表和 DAO（`ReadingStatsDao`）在 `core:database`。阅读页只在新文件 `feature/reader/.../stats/ReadingTimeTracker.kt` 里接入，`ReaderViewModel` / `ReaderScreen` 各加了几行调用。
+- **计时规则**（`ReadingTimer`，纯 Kotlin，注入 `java.time.Clock`，单元测试覆盖）：
+  - 阅读：阅读页处于 RESUMED，且距上次交互不到 3 分钟时计时。交互包括用户翻页（`onRelocated.readingAction`）、选区、点标注、书签和点击呼出菜单；回到前台、停止听书也算一次交互。超过 3 分钟没有交互，这段在「最后交互 + 3 分钟」处结束（这 3 分钟算在内），下一次交互开始新的一段。
+  - 听书：朗读状态为 PLAYING 且是这本书时计时，不论前台、后台还是息屏。状态直接取自 `TtsPlaybackController`，不依赖界面生命周期。听书优先于阅读，记为 `LISTEN`。
+  - 翻页数：用户翻页且 CFI 变化时加一（滚动模式下同一页内的多次 relocate 不重复计）。
+  - 跨午夜：一段在本地午夜处切成两段，各属一天。
+- **写入**：`ReadingSession` 每 30 秒把进行中的一段按 `uuid` upsert 一次（进程被杀最多丢 30 秒），一段结束（暂停、空闲、切换模式、退出）时立即写。写入经 `ReadingStatsRepository` 的单一队列在应用作用域中顺序执行，退出阅读页后仍会写完。
+- **读完**：阅读页上报进度，仓库判断：进度 ≥ 99%，或到达最后一节的最后一页（要求节数 ≥ 2，否则单节的书一打开就算读完；PDF / CBZ 每页一节，即最后一页）。只记第一次。听书进度（`onTtsProgress`）也参与判断。
+- **表结构**（v4，手写 `MIGRATION_3_4`，由 `MigrationTest` 覆盖；外键 `ON DELETE CASCADE`，删书时统计一起删除）：
+
+| 表 | 列 |
+|---|---|
+| `reading_sessions` | `uuid` 主键、`book_id`、`mode`（`READ` / `LISTEN`）、`started_at` / `ended_at`（UTC 毫秒）、`local_day`（开始时本地日期的 epochDay）、`utc_offset_minutes`、`pages`；索引 `book_id`、`local_day` |
+| `book_finishes` | `book_id` 主键、`uuid`（唯一）、`finished_at`、`local_day` |
+
+- **按天统计**：按写入时的 `local_day` 汇总，换时区后历史数据不会挪到别的日子；「今天」按设备当前时区计算（`CurrentZoneClock` 每次读取系统时区）。连续天数：截至今天连续有记录的天数，今天还没读时从昨天往前数。本周从当前语言区域的每周第一天算起。
+- **统计页**：概览（今天、连续天数、本周、总时长、读完的书、听书时长）、最近 7 / 30 天堆叠柱状图（阅读用 primary，听书用 tertiary，点按查看某天）、过去 53 周热力图（按 15 / 30 / 60 分钟分 4 档，primary 深浅，可横向滚动，默认停在本周）、按书排行（点击打开该书）。图表都用 `Canvas` 自绘，颜色取自 `MaterialTheme.colorScheme`；切换 7 / 30 天用 `ZenMotion.fadeThrough`。
+- **已知限制**：
+  - 不同步；换机或重装后统计从零开始。
+  - 只能看到 WebView 上报的交互：长时间停在一页、只做系统手势时，3 分钟后会停表；反过来，3 分钟内的发呆会被算进去。
+  - 时长按墙上时钟计算，系统时间被手动大幅调整时会多算或少算（时钟回拨不会让已记录的时长变短）。
+  - 退出阅读页会停止听书（见 §10），所以没有「阅读页之外的听书」。
+  - 读完只看本机进度；在别的设备上读完后同步过来的进度不会记为读完。
+  - 阅读页内暂不显示本书累计时长（可选项，为不打扰阅读没有做；数据已有 `ReadingStatsRepository.observeBookTotal`）。

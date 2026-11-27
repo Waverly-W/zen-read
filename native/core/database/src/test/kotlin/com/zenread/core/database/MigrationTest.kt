@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -83,6 +84,90 @@ class MigrationTest {
             val tombstones = db.syncDao().tombstones().associateBy { it.kind to it.syncId }
             assertTrue((SyncTombstoneEntity.KIND_ANNOTATION to uuid) in tombstones)
             assertTrue((SyncTombstoneEntity.KIND_BOOK to "hash") in tombstones)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate3To4_addsReadingStatsTablesThatCascadeWithBooks() {
+        helper.createDatabase(DB, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO books (id, title, author, format, file_path, cover_path, file_hash, last_location, " +
+                    "progress, created_at, last_read_at, updated_at) VALUES " +
+                    "(1, 'One', 'A', 'EPUB', '/books/a.epub', NULL, 'hash-a', NULL, 0.5, 1000, 2000, 1000), " +
+                    "(2, 'Two', 'B', 'PDF', '/books/b.pdf', NULL, 'hash-b', NULL, 0, 3000, NULL, 3000)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DB, 4, true, MIGRATION_3_4).use { db ->
+            db.query("SELECT COUNT(*) FROM books").use { c ->
+                c.moveToFirst()
+                assertEquals("existing rows survive", 2, c.getInt(0))
+            }
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL(
+                "INSERT INTO reading_sessions (uuid, book_id, mode, started_at, ended_at, local_day, " +
+                    "utc_offset_minutes, pages) VALUES ('s1', 1, 'READ', 0, 60000, 20419, 480, 3), " +
+                    "('s2', 2, 'LISTEN', 0, 1000, 20419, 480, 0)",
+            )
+            db.execSQL("INSERT INTO book_finishes (book_id, uuid, finished_at, local_day) VALUES (1, 'f1', 5, 20419)")
+            db.execSQL("DELETE FROM books WHERE id = 1")
+            db.query("SELECT uuid FROM reading_sessions").use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("s2", c.getString(0))
+            }
+            db.query("SELECT COUNT(*) FROM book_finishes").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun migrate2To4_runsBothManualMigrations() {
+        helper.createDatabase(DB, 2).close()
+        helper.runMigrationsAndValidate(DB, 4, true, MIGRATION_2_3, MIGRATION_3_4).close()
+    }
+
+    @Test
+    fun readingStatsDao_extendsStretchesAndSumsPerDay() = runTest {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), ZenReadDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val bookId = db.bookDao().insert(
+                BookEntity(
+                    title = "T", author = "A", format = "EPUB", filePath = "/f", coverPath = "/c",
+                    fileHash = "hash", lastLocation = null, progress = 0f, createdAt = 5, lastReadAt = null,
+                ),
+            )
+            val dao = db.readingStatsDao()
+            val first = ReadingSessionEntity("s1", bookId, ReadingSessionEntity.MODE_READ, 0, 30_000, 10, 480, 1)
+            dao.upsertSession(first)
+            dao.upsertSession(first.copy(endedAt = 90_000, pages = 4))
+            dao.upsertSession(ReadingSessionEntity("s2", bookId, ReadingSessionEntity.MODE_LISTEN, 100_000, 160_000, 10, 480, 0))
+            dao.upsertSession(ReadingSessionEntity("s3", bookId, ReadingSessionEntity.MODE_READ, 200_000, 260_000, 11, 480, 2))
+
+            assertEquals(3, dao.sessions().size)
+            val days = dao.observeDayTotals().first()
+            assertEquals(
+                listOf(
+                    DayModeTotalRow(10, "LISTEN", 60_000, 0),
+                    DayModeTotalRow(10, "READ", 90_000, 4),
+                    DayModeTotalRow(11, "READ", 60_000, 2),
+                ),
+                days.sortedWith(compareBy({ it.day }, { it.mode })),
+            )
+            assertTrue(dao.insertFinish(BookFinishEntity(bookId, "f1", 1, 10)) > 0)
+            assertEquals("second finish ignored", -1L, dao.insertFinish(BookFinishEntity(bookId, "f2", 2, 11)))
+            val book = dao.observeBookTotals().first().single()
+            assertEquals(210_000L, book.totalMs)
+            assertEquals(60_000L, book.listenMs)
+            assertEquals(260_000L, book.lastReadAt)
+            assertTrue(book.finished)
+            assertEquals(210_000L, dao.observeBookTotal(bookId).first())
         } finally {
             db.close()
         }

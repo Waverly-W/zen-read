@@ -12,6 +12,7 @@ import com.zenread.core.model.TocItem
 import com.zenread.data.library.AnnotationRepository
 import com.zenread.data.library.BookFileState
 import com.zenread.data.library.BookRepository
+import com.zenread.feature.reader.stats.ReadingTimeTracker
 import com.zenread.reader.engine.BookFileRegistry
 import com.zenread.reader.engine.Cfi
 import com.zenread.reader.engine.PageRect
@@ -80,6 +81,8 @@ class ReaderViewModel @AssistedInject constructor(
     private val settingsRepository: ReaderSettingsRepository,
     private val files: BookFileRegistry,
     val webViewFactory: ReaderWebViewFactory,
+    /** Reading statistics (§14). */
+    internal val readingTime: ReadingTimeTracker,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -104,6 +107,7 @@ class ReaderViewModel @AssistedInject constructor(
 
     init {
         open()
+        readingTime.start(bookId, viewModelScope)
     }
 
     /** Retries opening after a failed cloud download. */
@@ -137,6 +141,7 @@ class ReaderViewModel @AssistedInject constructor(
     }
 
     fun onEvent(event: ReaderEvent) {
+        readingTime.onEvent(event)
         when (event) {
             ReaderEvent.LoadEnd -> _state.update { it.copy(ready = true, error = null) }
             is ReaderEvent.LoadError -> _state.update { it.copy(error = ReaderError.LOAD_FAILED) }
@@ -331,6 +336,7 @@ class ReaderViewModel @AssistedInject constructor(
     fun onReload() = _state.update { it.copy(ready = false, error = null) }
 
     fun setChromeVisible(visible: Boolean) = _state.update { it.copy(chromeVisible = visible) }
+        .also { readingTime.onInteraction() }
 
     fun updateSettings(transform: (ReaderSettings) -> ReaderSettings) {
         viewModelScope.launch { settingsRepository.update(transform) }
@@ -341,6 +347,7 @@ class ReaderViewModel @AssistedInject constructor(
     private fun currentFraction() = _state.value.location?.fraction ?: 0f
 
     override fun onCleared() {
+        readingTime.stop()
         registration?.let(files::unregister)
     }
 }

@@ -36,3 +36,6 @@ include(":data:tts")
 include(":data:ai")
 include(":data:fonts")
 include(":feature:fonts")
+
+include(":data:stats")
+include(":feature:stats")

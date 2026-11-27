@@ -57,6 +57,7 @@ import com.zenread.core.model.ReaderSettings
 import com.zenread.core.model.ReadingTheme
 import com.zenread.feature.reader.ai.AiPanelRequest
 import com.zenread.feature.reader.ai.ReaderAiHost
+import com.zenread.feature.reader.stats.ReadingTimeLifecycle
 import com.zenread.feature.reader.translate.ReaderTranslationLayer
 import com.zenread.feature.reader.translate.ReaderTranslationViewModel
 import com.zenread.feature.reader.tts.ReaderTtsBar
@@ -93,6 +94,7 @@ fun ReaderScreen(
     val textColor = Color(theme.text.toColorInt())
 
     ImmersiveSystemBars(showBars = state.chromeVisible, darkPage = theme == ReadingTheme.NIGHT)
+    ReadingTimeLifecycle(viewModel.readingTime)
 
     val annotations by viewModel.annotations.collectAsStateWithLifecycle()
     val translation: ReaderTranslationViewModel = hiltViewModel()

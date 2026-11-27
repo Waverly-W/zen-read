@@ -45,4 +45,6 @@ dependencies {
     implementation(libs.androidx.compose.material3.navigation.suite)
     implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.kotlinx.serialization.core)
+    // reading statistics
+    implementation(project(":feature:stats"))
 }

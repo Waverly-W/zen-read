@@ -35,3 +35,32 @@ internal val MIGRATION_2_3_SQL = listOf(
     "CREATE TABLE IF NOT EXISTS `sync_tombstones` (`kind` TEXT NOT NULL, `sync_id` TEXT NOT NULL, " +
         "`deleted_at` INTEGER NOT NULL, PRIMARY KEY(`kind`, `sync_id`))",
 )
+
+/**
+ * v3 → v4: reading statistics.
+ *
+ * - `reading_sessions`: stretches of reading or listening, one local day each.
+ * - `book_finishes`: the first time each book was read to the end.
+ *
+ * Both reference `books` with `ON DELETE CASCADE`. Only new tables, so nothing is backfilled;
+ * written by hand to keep every migration after v2 explicit and tested.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        MIGRATION_3_4_SQL.forEach(db::execSQL)
+    }
+}
+
+internal val MIGRATION_3_4_SQL = listOf(
+    "CREATE TABLE IF NOT EXISTS `reading_sessions` (`uuid` TEXT NOT NULL, `book_id` INTEGER NOT NULL, " +
+        "`mode` TEXT NOT NULL, `started_at` INTEGER NOT NULL, `ended_at` INTEGER NOT NULL, " +
+        "`local_day` INTEGER NOT NULL, `utc_offset_minutes` INTEGER NOT NULL, `pages` INTEGER NOT NULL, " +
+        "PRIMARY KEY(`uuid`), FOREIGN KEY(`book_id`) REFERENCES `books`(`id`) " +
+        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+    "CREATE INDEX IF NOT EXISTS `index_reading_sessions_book_id` ON `reading_sessions` (`book_id`)",
+    "CREATE INDEX IF NOT EXISTS `index_reading_sessions_local_day` ON `reading_sessions` (`local_day`)",
+    "CREATE TABLE IF NOT EXISTS `book_finishes` (`book_id` INTEGER NOT NULL, `uuid` TEXT NOT NULL, " +
+        "`finished_at` INTEGER NOT NULL, `local_day` INTEGER NOT NULL, PRIMARY KEY(`book_id`), " +
+        "FOREIGN KEY(`book_id`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    "CREATE UNIQUE INDEX IF NOT EXISTS `index_book_finishes_uuid` ON `book_finishes` (`uuid`)",
+)

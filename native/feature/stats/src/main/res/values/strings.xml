@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stats_title">Statistics</string>
+    <string name="stats_empty_title">No reading time yet</string>
+    <string name="stats_empty_body">Time you spend reading or listening to books shows up here, with your daily streak and the books you read most.</string>
+
+    <string name="stats_duration_hm">%1$dh %2$dm</string>
+    <string name="stats_duration_h">%dh</string>
+    <string name="stats_duration_m">%dm</string>
+    <string name="stats_duration_under_minute">&lt;1m</string>
+
+    <string name="stats_today">Today</string>
+    <string name="stats_streak">Streak</string>
+    <plurals name="stats_streak_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="stats_this_week">This week</string>
+    <string name="stats_total">Total</string>
+    <string name="stats_listening">Listening</string>
+    <string name="stats_reading">Reading</string>
+    <string name="stats_finished">Finished</string>
+    <plurals name="stats_books_count">
+        <item quantity="one">%d book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
+
+    <string name="stats_daily_title">Daily reading</string>
+    <string name="stats_range_week">7 days</string>
+    <string name="stats_range_month">30 days</string>
+    <plurals name="stats_chart_description">
+        <item quantity="one">Last %1$d day, %2$s in total</item>
+        <item quantity="other">Last %1$d days, %2$s in total</item>
+    </plurals>
+    <string name="stats_heatmap_title">Past year</string>
+    <string name="stats_heatmap_description">Reading time per day over the past year, %1$s in total</string>
+    <string name="stats_heatmap_less">Less</string>
+    <string name="stats_heatmap_more">More</string>
+
+    <string name="stats_books_title">By book</string>
+    <string name="stats_book_summary">%1$s · %2$s</string>
+    <string name="stats_book_finished">Finished</string>
+    <string name="stats_book_listening">%s listening</string>
+</resources>

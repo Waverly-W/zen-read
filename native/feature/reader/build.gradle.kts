@@ -18,4 +18,6 @@ dependencies {
     // phase 5 (AI)
     implementation(project(":data:ai"))
     implementation(libs.markdown.renderer.m3)
+    // reading statistics
+    implementation(project(":data:stats"))
 }
