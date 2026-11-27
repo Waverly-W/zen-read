@@ -9,10 +9,11 @@
 |---|---|
 | 多格式书库（EPUB / MOBI / AZW3 / FB2 / TXT / PDF / CBZ） | iOS、macOS、Windows、Linux、鸿蒙 |
 | 标注、笔记、书签 | OCR、插件系统、微信读书、词典 |
-| 翻译（AI / DeepL / Google / Microsoft） | 阅读统计热力图、自动更新、问题反馈 |
+| 翻译（AI / DeepL / Google） | 自动更新、问题反馈 |
 | 听书 TTS（系统 / Edge / OpenAI 兼容） | 扫描书重排、分格阅读 |
 | AI 阅读（对话、技能、RAG 检索） | |
 | WebDAV、S3 同步 | |
+| 阅读统计（时长、热力图，见 §14） | |
 
 ## 2. 技术栈
 
