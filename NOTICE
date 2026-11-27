@@ -1,32 +1,42 @@
-Modu
-Copyright (c) 2026 Modu contributors
+Zen Read
+Copyright (c) 2026 Zen Read contributors
 
-Derived from Anx Reader: https://github.com/anxcye/anx-reader
-AI knowledge-engine and TTS portions are derived from or based on ReadAny: https://github.com/codedogQBY/ReadAny
+Zen Read is an Android-native rewrite (Kotlin, Jetpack Compose) of Modu Reader:
+https://github.com/sobranie2406/modureader (ported from commit 83e39a79).
+Modu Reader derives from Anx Reader (https://github.com/anxcye/anx-reader) and
+ReadAny (https://github.com/codedogQBY/ReadAny).
 
-This is an independently modified derivative, not an official release of either upstream project.
-Distributed under GNU General Public License version 3 or later. See LICENSE.
-Anx Reader portions retain their MIT license and copyright (c) 2025 Anxcye;
-see LICENSES/Anx-Reader-MIT.txt. ReadAny portions retain copyright (c) 2024
-ReadAny Team; see LICENSES/ReadAny-GPL-3.0-or-later.txt.
-Source: https://github.com/sobranie2406/modureader
-Third-party notices remain in their original source and dependency distributions.
+This is an independently modified derivative, not an official release of any
+upstream project. Distributed under GNU General Public License version 3 or
+later. See LICENSE.
 
-The font-download specimen uses an unmodified Atkinson Hyperlegible Next Regular
-font, Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors.
+Anx Reader portions (the reader page scripts under reader/engine/src/main/assets/reader/)
+retain their MIT license and copyright (c) 2025 Anxcye; see LICENSES/Anx-Reader-MIT.txt.
+ReadAny portions (AI reading, RAG and TTS logic, ported to Kotlin) retain
+copyright (c) 2024 ReadAny Team; see LICENSES/ReadAny-GPL-3.0-or-later.txt.
+Modu Reader portions: Copyright (c) 2026 Modu contributors, GPL-3.0-or-later.
+
+The reader engine is a fork of foliate-js, Copyright (c) 2022 John Factotum,
+licensed under MIT; it bundles PDF.js (Apache-2.0). The license texts ship in
+the APK and are shown in Settings > About > Open source licenses. Local changes
+are listed in reader/engine/src/main/assets/reader/UPSTREAM.md.
+
+Edge Read Aloud token generation is adapted from edge-tts 7.3.0 drm.py,
+Copyright (c) 2025- rany <rany@riseup.net>, licensed under LGPLv3; the Kotlin
+adaptation retains LGPLv3. See LICENSES/edge-tts-LGPL-3.0.txt.
+Source: https://github.com/rany2/edge-tts/blob/7.3.0/src/edge_tts/drm.py
+
+The APK bundles an unmodified Atkinson Hyperlegible Next Regular font,
+Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors.
 Source: https://github.com/googlefonts/atkinson-hyperlegible-next
 File: fonts/ttf/AtkinsonHyperlegibleNext-Regular.ttf
 Git blob: d0982cdce554149011bec58b21ac4a1bf8ee9ff5
-Licensed under SIL Open Font License 1.1; see LICENSES/AtkinsonHyperlegibleNext-OFL.txt.
-This preview face does not replace the user's reading font or downloaded fonts.
-The native Android app (native/) bundles the same unmodified file as a
-selectable reading font, with its license text next to it in
-native/data/fonts/src/main/assets/fonts/.
+Licensed under SIL Open Font License 1.1; see LICENSES/AtkinsonHyperlegibleNext-OFL.txt
+(also next to the font in data/fonts/src/main/assets/fonts/).
 
-The native Android app also offers optional reading-font downloads. They are not
-included in the APK; each is fetched unmodified from its official source (or a
-jsDelivr mirror of the same pinned revision) and verified by SHA-256. All are
-licensed under SIL Open Font License 1.1:
+Optional reading-font downloads are not included in the APK; each is fetched
+unmodified from its official source (or a jsDelivr mirror of the same pinned
+revision) and verified by SHA-256. All are licensed under SIL Open Font License 1.1:
 - Source Han Serif CN Regular, Copyright 2017-2022 Adobe, with Reserved Font
   Name 'Source'; adobe-fonts/source-han-serif@7889f11b.
   See LICENSES/SourceHanSerif-OFL.txt.
@@ -34,32 +44,8 @@ licensed under SIL Open Font License 1.1:
   Project Authors. See LICENSES/LXGWWenKaiLite-OFL.txt.
 - Literata (variable), Copyright 2017 The Literata Project Authors;
   google/fonts@50268007. See LICENSES/Literata-OFL.txt.
-Exact URLs, sizes and checksums: native/data/fonts/src/main/kotlin/com/zenread/data/fonts/FontCatalog.kt.
+Exact URLs, sizes and checksums: data/fonts/src/main/kotlin/com/zenread/data/fonts/FontCatalog.kt.
 
-Edge Read Aloud v2 token generation is adapted from edge-tts 7.3.0 drm.py,
-Copyright (c) 2025- rany <rany@riseup.net>, licensed under LGPLv3.
-Modifications Copyright (c) 2026 Modu contributors; the Dart adaptation retains
-LGPLv3. See LICENSES/edge-tts-LGPL-3.0.txt and LICENSE.
-Source: https://github.com/rany2/edge-tts/blob/7.3.0/src/edge_tts/drm.py
-
-Windows ONNX dispatcher includes modified flutter_onnxruntime 1.8.4 code,
-Copyright (c) 2025 MASIC AI, licensed under MIT; see LICENSES/flutter_onnxruntime-MIT.txt.
-
-AI service logos are sourced from their official websites and identify compatible
-services, without implying endorsement or affiliation. All artwork and trademark
-rights remain with their respective owners. See assets/images/providers/SOURCES.md.
-
-On-demand model downloads use unmodified Xenova quantized ONNX exports and tokenizers for
-Sentence Transformers MiniLM (Apache-2.0), BAAI BGE (MIT), and Microsoft E5 (MIT).
-See UPSTREAM.md, assets/models/embeddings/manifest.json and LICENSES for exact
-sources, pinned revisions, checksums and the original license texts.
-
-Optional OCR downloads use unmodified PP-OCRv3/v4/v5 mobile detection and recognition
-ONNX models exported by RapidOCR/SWHL from PaddleOCR (Apache-2.0).
-The models are not bundled in the installer. Source and pinned revision:
-https://huggingface.co/SWHL/RapidOCR/tree/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4
-https://www.modelscope.cn/models/RapidAI/RapidOCR (v5: v3.9.2, pinned SHA-256)
-https://github.com/PaddlePaddle/PaddleOCR
-See lib/service/ocr/ocr_models.dart for SHA-256 checksums and byte lengths,
-and LICENSES/PaddleOCR-Apache-2.0.txt for the license. Modu's lightweight
-pre/postprocessing and UI integration are independently implemented.
+Other dependencies (AndroidX, Jetpack Compose, Hilt, Room, Media3, OkHttp,
+Coil, kotlinx) are used unmodified under their own licenses, mostly Apache-2.0;
+see Settings > About > Open source licenses.

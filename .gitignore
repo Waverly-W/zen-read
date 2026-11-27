@@ -1,135 +1,16 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+.gradle/
+.kotlin/
+build/
+local.properties
 .idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/android/build/
-/dist-release/
-/.release-secrets/
-# Local translation preferences and intermediate drafts; publish README_EN.md.
-/.baoyu-skills/
-/README-en/
-# Pinned model payloads are staged for packaging, not committed as source.
-/assets/models/embeddings/*/*.onnx
-/assets/models/embeddings/*/tokenizer.json
-/assets/models/embeddings/*/*.part
-__pycache__/
-**/target/
-*.p12
-*.pfx
-*.mobileprovision
-*.keystore
-.env.*
-
-# Private local QA captures/reports are not source-release assets. Keep only
-# synthetic fixtures needed by the public regression suite.
-/docs/qa/*
-!/docs/qa/2026-09-05/
-/docs/qa/2026-09-05/*
-!/docs/qa/2026-09-05/full-audit/
-/docs/qa/2026-09-05/full-audit/*
-!/docs/qa/2026-09-05/full-audit/fixtures/
-/docs/qa/2026-09-05/full-audit/fixtures/*
-!/docs/qa/2026-09-05/full-audit/fixtures/*.pdf
-!/docs/qa/2026-09-05/full-audit/fixtures/*.epub
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# riverpod generated files
-lib/gen/
-release.sh
-*.g.dart
-!lib/l10n/modu_catalogs.g.dart
-!third_party/riverpod_analyzer_utils/lib/src/nodes.g.dart
-*.freezed.dart
-
-/.vscode/
-CLAUDE.md
-.claude/
-AGENTS.md
-
-macos/DerivedData/
-
-.env
-*.jks
+# Signing (see app/build.gradle.kts) and agent worktrees
 key.properties
-google_service_account.json
-**/fastlane/report.xml
-**/fastlane/Preview.html
-**/fastlane/screenshots
-**/fastlane/test_output
-
-google_service_account.json
-
-# FVM Version Cache
-.fvm/
-.fvmrc
-
-# Local browser test fixtures, screenshots and temporary browser sessions.
-/output/
-/output/playwright/
-/.playwright-cli/
-
-# Installers and private diagnostics belong in Releases/local storage, not source.
-*.apk
-*.aab
-*.ipa
-*.dmg
-*.dmp
-*.har
-
-# Retired presentation sources remain local; publish only the current composites.
-/docs/images/Anx-logo.jpg
-/docs/images/main.jpg
-/docs/images/mobile[0-9]*.png
-/docs/images/wide[0-9]*.png
-/docs/images/*-macos.jpg
-/docs/images/zh/
-/docs/images/v1.1.9/
-/docs/images/showcase/*.png
-/fastlane/metadata/android/*/images/
-
-# Private device reference captures may contain book text; keep them local.
-/docs/references/hanvon-pdf/
-
-# Example plugin builds are reproducible from the sources next to them; keep the
-# tree small and let "pack then import" stay the one way to obtain a package.
-/docs/examples/plugins/dist/
+*.jks
+*.keystore
+.claude/worktrees/
+.claude/settings.local.json
