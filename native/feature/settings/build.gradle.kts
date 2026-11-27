@@ -15,4 +15,6 @@ dependencies {
     implementation(project(":data:sync"))
     implementation(project(":core:datastore"))
     implementation(project(":feature:fonts"))
+    // appearance: per-app language
+    implementation(libs.androidx.appcompat)
 }

@@ -47,4 +47,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     // reading statistics
     implementation(project(":feature:stats"))
+    // appearance: theme read before the first frame, per-app language (AppCompatActivity)
+    implementation(project(":core:datastore"))
+    implementation(libs.androidx.appcompat)
+    implementation(libs.kotlinx.coroutines.android)
 }

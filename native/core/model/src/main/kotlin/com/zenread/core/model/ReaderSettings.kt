@@ -6,7 +6,7 @@ enum class PageTurnStyle(val jsName: String) {
     NONE("noAnimation"),
 }
 
-/** Page colors as CSS hex. [AUTO] follows the system dark mode. */
+/** Page colors as CSS hex. [AUTO] follows the app's dark mode (Settings › Appearance). */
 enum class ReadingTheme(val background: String, val text: String) {
     AUTO("", ""),
     PAPER("#FBFBF3", "#2B2B2B"),
