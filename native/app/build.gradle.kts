@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.zenread.android.application)
     alias(libs.plugins.zenread.android.compose)
@@ -14,6 +16,21 @@ android {
         versionName = "0.1.0"
     }
 
+    // Release signing comes from native/key.properties (not in git):
+    // storeFile, storePassword, keyAlias, keyPassword. Without it the release build is unsigned.
+    val keyProps = rootProject.file("key.properties").takeIf { it.exists() }
+        ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
+    signingConfigs {
+        if (keyProps != null) {
+            create("release") {
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -22,6 +39,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keyProps != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 }
