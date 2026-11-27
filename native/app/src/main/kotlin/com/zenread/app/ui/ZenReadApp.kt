@@ -26,6 +26,10 @@ import com.zenread.feature.settings.reading.ReadingSettingsScreen
 import com.zenread.feature.settings.sync.SyncSettingsScreen
 import com.zenread.feature.settings.translate.TranslateSettingsScreen
 import com.zenread.feature.settings.tts.TtsSettingsScreen
+import com.zenread.feature.settings.appearance.AppearanceSettingsScreen
+import com.zenread.feature.settings.about.AboutLicensesKey
+import com.zenread.feature.settings.about.AboutLicensesScreen
+import com.zenread.feature.settings.about.AboutScreen
 import kotlinx.serialization.Serializable
 
 /** The tabbed home (library, notes, settings); always the bottom of the back stack. */
@@ -81,8 +85,21 @@ fun ZenReadApp() {
                     SettingsCategory.AI -> AiSettingsScreen(onBack = back)
                     SettingsCategory.SYNC -> SyncSettingsScreen(onBack = back)
                     SettingsCategory.READING -> ReadingSettingsScreen(onBack = back)
+                    SettingsCategory.APPEARANCE -> AppearanceSettingsScreen(onBack = back)
+                    SettingsCategory.ABOUT -> AboutScreen(
+                        onBack = back,
+                        onOpenLicenses = { backStack.add(AboutLicensesKey()) },
+                        onOpenLicenseText = { backStack.add(AboutLicensesKey(it)) },
+                    )
                     else -> PlaceholderSettingsScreen(key.category, onBack = back)
                 }
+            }
+            entry<AboutLicensesKey> { key ->
+                AboutLicensesScreen(
+                    componentId = key.componentId,
+                    onBack = back,
+                    onOpenComponent = { backStack.add(AboutLicensesKey(it)) },
+                )
             }
         },
     )

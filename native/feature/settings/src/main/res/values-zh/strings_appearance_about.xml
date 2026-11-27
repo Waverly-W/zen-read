@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 外观（settings.appearance） -->
+    <string name="appearance_section_theme">主题</string>
+    <string name="appearance_theme_mode">深色模式</string>
+    <string name="appearance_theme_system">跟随系统</string>
+    <string name="appearance_theme_light">浅色</string>
+    <string name="appearance_theme_dark">深色</string>
+    <string name="appearance_dynamic_color">动态取色</string>
+    <string name="appearance_dynamic_color_summary">使用壁纸中的颜色</string>
+    <string name="appearance_accent">主题色</string>
+    <string name="appearance_accent_teal">青绿</string>
+    <string name="appearance_accent_blue">蓝</string>
+    <string name="appearance_accent_violet">紫</string>
+    <string name="appearance_accent_rose">玫红</string>
+    <string name="appearance_accent_amber">琥珀</string>
+    <string name="appearance_accent_green">绿</string>
+    <string name="appearance_pure_black">纯黑背景</string>
+    <string name="appearance_pure_black_summary">深色模式下使用纯黑背景，适合 OLED 屏幕</string>
+    <string name="appearance_section_language">语言</string>
+    <string name="appearance_language_system">跟随系统</string>
+    <string name="appearance_language_more">更多语言设置</string>
+    <string name="appearance_language_more_summary">在系统设置中选择应用语言</string>
+
+    <!-- 关于（settings.about） -->
+    <string name="about_version">版本 %1$s（%2$d）</string>
+    <string name="about_section_license">许可证</string>
+    <string name="about_license_title">GNU 通用公共许可证第 3 版或更新版本</string>
+    <string name="about_license_summary">Zen Read 是自由软件，你可以按照此许可证的条款分享和修改它。本软件不提供任何担保。</string>
+    <string name="about_open_source">开源许可</string>
+    <string name="about_open_source_summary">Zen Read 使用的开源组件及其许可证</string>
+    <string name="about_section_upstream">上游项目</string>
+    <string name="about_upstream_summary">Zen Read 是 Modu Reader 的 Android 原生重写版，Modu Reader 源自 Anx Reader 和 ReadAny。</string>
+    <string name="about_open_link">在浏览器中打开</string>
+    <string name="about_no_browser">没有可以打开此链接的应用。</string>
+
+    <!-- 开源许可 -->
+    <string name="licenses_title">开源许可</string>
+    <string name="licenses_section_ported">Zen Read 包含的代码与资源</string>
+    <string name="licenses_section_libraries">程序库</string>
+    <string name="licenses_view_online">在线查看许可证</string>
+    <string name="licenses_not_bundled">应用内未附带许可证全文。</string>
+    <string name="licenses_homepage">项目主页</string>
+    <string name="licenses_role_foliate">电子书排版引擎（EPUB、MOBI、FB2、CBZ、PDF）</string>
+    <string name="licenses_role_pdfjs">PDF 渲染，随 foliate-js 附带</string>
+    <string name="licenses_role_anx">阅读页脚本，经由 Modu Reader 引入</string>
+    <string name="licenses_role_readany">AI 阅读、书籍索引（RAG）和听书逻辑，移植</string>
+    <string name="licenses_role_edge_tts">Edge 听书令牌生成，移植</string>
+    <string name="licenses_role_atkinson">内置阅读字体</string>
+    <string name="licenses_role_androidx">Core、Activity、AppCompat、Lifecycle、Navigation 3、Room、DataStore、WorkManager、WebKit、Startup、SQLite</string>
+    <string name="licenses_role_compose">界面与 Material 3</string>
+    <string name="licenses_role_media3">听书播放与媒体控制</string>
+    <string name="licenses_role_kotlin">编程语言、协程与序列化</string>
+    <string name="licenses_role_hilt">依赖注入</string>
+    <string name="licenses_role_okhttp">同步、AI、翻译和听书的网络请求</string>
+    <string name="licenses_role_coil">封面图片</string>
+    <string name="licenses_role_markdown">AI 回答的格式化显示</string>
+    <string name="licenses_role_sqlite">书籍索引使用的内置数据库引擎</string>
+</resources>

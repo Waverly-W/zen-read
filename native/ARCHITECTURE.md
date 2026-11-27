@@ -226,3 +226,12 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 - **页面转场**：根导航栈是「主页 → 阅读页 / 设置详情」。推入和返回用 Material 共享 X 轴（滑动 30dp）；手势返回用同一套动作，再加上离开页面缩小到 90%；主页内切换标签用淡入穿越。底部导航栏属于主页，会随主页整体滑走，因此阅读页在打开过程中不会因导航栏消失而改变尺寸、触发重新分页。
 - **曲线**：位移用主题 `MotionScheme` 的 Expressive 弹簧。淡入淡出用 Material 的短时长：旧内容 90 ms 内淡出，新内容随后用 210 ms 淡入，避免默认 700 ms 交叉淡化那种两层半透明叠在一起的生硬感。
 - **弹出元素**：阅读页顶栏和底栏、听书条用 `enterFromTop` / `enterFromBottom`；选区菜单和标注菜单用 `popIn` / `popOut`，状态清空后由 `rememberLastNonNull` 保留内容，直到退场动画结束；可折叠区块用 `expand` / `collapse`；阅读页正文在 foliate-js 排版完成后淡入。
+
+## 13. 外观与关于
+
+- **偏好**：`core:model` 的 `AppearanceSettings`（`ThemeMode` 跟随系统 / 浅色 / 深色、`dynamicColor`、`ThemeAccent` 预设色、`pureBlack`），存在独立的 DataStore 文件 `appearance_settings`，由 `core:datastore` 的 `AppearanceSettingsRepository` 读写。键值映射在 `AppearancePreferences`，未知值回落到默认值，有单元测试。
+- **主题**：`ZenReadTheme(darkTheme, dynamicColor, pureBlack, accent)`。动态取色只在 Android 12+ 生效；关闭或不支持时用 `accentColorScheme(accent, dark)`。六套预设配色（青绿、蓝、紫、玫红、琥珀、绿）用 `@material/material-color-utilities` 0.3.0 的 `SchemeTonalSpot`（对比度 0）从种子色生成，生成结果作为常量写进 `Color.kt`，运行时不依赖取色库。`AccentColorSchemeTest` 检查每组文字与底色的对比度不低于 4.5。青绿就是原来的默认配色。`core:designsystem` 因此依赖 `core:model`。
+- **深浅色以应用设置为准**：`ZenReadTheme` 通过 CompositionLocal 提供 `isAppInDarkTheme()`，应用内用它代替 `isSystemInDarkTheme()`。阅读页的「自动」主题，以及退出阅读页时恢复的系统栏图标颜色，都改用它。
+- **启动不闪**：`MainActivity` 在 `setContent` 之前用 `runBlocking` 读一次外观偏好（文件很小，之后 DataStore 从内存返回），首帧就是用户的主题。系统栏图标颜色跟随应用的深浅色：深浅色改变时重新调用 `enableEdgeToEdge(SystemBarStyle.auto(...) { dark })`。系统启动窗口（Android 12+ 的启动画面）仍按系统深浅色绘制，应用进程无法控制。
+- **应用语言**：跟随系统 / 简体中文 / English，通过 `AppCompatDelegate.setApplicationLocales` 设置。语言由平台保存，不在 DataStore 里另存一份：Android 13+ 存在系统的按应用语言设置里（用户也可以在系统设置中更改，页面上有入口）；更早的版本由 AppCompat 的 `AppLocalesMetadataHolderService`（`autoStoreLocales`）保存。为此 `MainActivity` 改为继承 `AppCompatActivity`，窗口主题改为 `Theme.AppCompat.DayNight.NoActionBar`。`res/xml/locales_config.xml` 声明 `en`、`zh-CN`，新增语言时与 `AppLanguage` 一起改。`AppLanguage.fromTags` 只看第一个标签：任何中文标签都对应简体中文，应用没有的语言视为跟随系统。
+- **关于页**：图标、名称、版本号通过 `PackageManager` 读取；许可证为 GPL-3.0-or-later；上游项目链接用系统浏览器打开。「开源许可」是新的导航键 `AboutLicensesKey(componentId)`：`componentId` 为空时显示组件列表，否则显示该组件的许可全文。二级页面因此也由 `NavDisplay` 管理，与预测性返回一致。组件清单在 `OpenSourceComponents`。许可全文放在 `feature:settings` 的 `assets/licenses/`（GPL-3.0、edge-tts 的 LGPL-3.0、Apache-2.0、foliate-js 和 Anx Reader 的 MIT）；Atkinson Hyperlegible Next 的 OFL 直接引用 `data:fonts` 的 `assets/fonts/` 中已有的文件。没有附带全文的组件（如 SQLite）只显示链接。全文按空行分段，段内重新折行后显示（`reflowLicenseText`）。**新增依赖或移植代码时，在 `OpenSourceComponents` 中登记。**

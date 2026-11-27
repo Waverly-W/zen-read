@@ -45,4 +45,8 @@ dependencies {
     implementation(libs.androidx.compose.material3.navigation.suite)
     implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.kotlinx.serialization.core)
+    // appearance: theme read before the first frame, per-app language (AppCompatActivity)
+    implementation(project(":core:datastore"))
+    implementation(libs.androidx.appcompat)
+    implementation(libs.kotlinx.coroutines.android)
 }

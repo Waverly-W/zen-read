@@ -10,7 +10,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +50,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import com.zenread.core.designsystem.theme.isAppInDarkTheme
 import com.zenread.core.designsystem.component.NoteEditorSheet
 import com.zenread.core.model.BookFormat
 import com.zenread.core.model.ReaderSettings
@@ -88,7 +88,8 @@ fun ReaderScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val theme = (settings?.theme ?: ReadingTheme.AUTO).resolve(isSystemInDarkTheme())
+    // AUTO follows the app's light/dark setting (Settings › Appearance), not just the system.
+    val theme = (settings?.theme ?: ReadingTheme.AUTO).resolve(isAppInDarkTheme())
     val pageColor = Color(theme.background.toColorInt())
     val textColor = Color(theme.text.toColorInt())
 
@@ -439,7 +440,7 @@ private fun PageFooter(
 private fun ImmersiveSystemBars(showBars: Boolean, darkPage: Boolean) {
     val view = LocalView.current
     val window = (view.context as? Activity)?.window ?: return
-    val systemDark = isSystemInDarkTheme()
+    val appDark = isAppInDarkTheme()
     val controller = remember(window) { WindowCompat.getInsetsController(window, view) }
     LaunchedEffect(showBars, darkPage) {
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -454,8 +455,8 @@ private fun ImmersiveSystemBars(showBars: Boolean, darkPage: Boolean) {
     DisposableEffect(controller) {
         onDispose {
             controller.show(WindowInsetsCompat.Type.systemBars())
-            controller.isAppearanceLightStatusBars = !systemDark
-            controller.isAppearanceLightNavigationBars = !systemDark
+            controller.isAppearanceLightStatusBars = !appDark
+            controller.isAppearanceLightNavigationBars = !appDark
         }
     }
 }

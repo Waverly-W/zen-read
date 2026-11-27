@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Appearance page (settings.appearance) -->
+    <string name="appearance_section_theme">Theme</string>
+    <string name="appearance_theme_mode">Dark mode</string>
+    <string name="appearance_theme_system">System</string>
+    <string name="appearance_theme_light">Light</string>
+    <string name="appearance_theme_dark">Dark</string>
+    <string name="appearance_dynamic_color">Dynamic color</string>
+    <string name="appearance_dynamic_color_summary">Use colors from your wallpaper</string>
+    <string name="appearance_accent">Theme color</string>
+    <string name="appearance_accent_teal">Teal</string>
+    <string name="appearance_accent_blue">Blue</string>
+    <string name="appearance_accent_violet">Violet</string>
+    <string name="appearance_accent_rose">Rose</string>
+    <string name="appearance_accent_amber">Amber</string>
+    <string name="appearance_accent_green">Green</string>
+    <string name="appearance_pure_black">Pure black</string>
+    <string name="appearance_pure_black_summary">Black background in dark mode, for OLED screens</string>
+    <string name="appearance_section_language">Language</string>
+    <string name="appearance_language_system">System default</string>
+    <!-- Language names are written in their own language. -->
+    <string name="appearance_language_zh_cn" translatable="false">简体中文</string>
+    <string name="appearance_language_en" translatable="false">English</string>
+    <string name="appearance_language_more">More language settings</string>
+    <string name="appearance_language_more_summary">Set the app language in Android settings</string>
+
+    <!-- About page (settings.about) -->
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_section_license">License</string>
+    <string name="about_license_title">GNU General Public License v3.0 or later</string>
+    <string name="about_license_summary">Zen Read is free software: you can share and change it under the terms of this license. It comes with no warranty.</string>
+    <string name="about_open_source">Open-source licenses</string>
+    <string name="about_open_source_summary">Components Zen Read is built on, and their licenses</string>
+    <string name="about_section_upstream">Upstream</string>
+    <string name="about_upstream_summary">Zen Read is a native Android rewrite of Modu Reader, which derives from Anx Reader and ReadAny.</string>
+    <string name="about_open_link">Open in browser</string>
+    <string name="about_no_browser">No app can open this link.</string>
+
+    <!-- Open-source licenses page -->
+    <string name="licenses_title">Open-source licenses</string>
+    <string name="licenses_section_ported">Code and assets included in Zen Read</string>
+    <string name="licenses_section_libraries">Libraries</string>
+    <string name="licenses_view_online">Read the license online</string>
+    <string name="licenses_not_bundled">The full text is not included in the app.</string>
+    <string name="licenses_homepage">Project homepage</string>
+    <string name="licenses_role_foliate">E-book rendering engine (EPUB, MOBI, FB2, CBZ, PDF)</string>
+    <string name="licenses_role_pdfjs">PDF rendering, bundled with foliate-js</string>
+    <string name="licenses_role_anx">Reader page scripts, via Modu Reader</string>
+    <string name="licenses_role_readany">AI reading, book index (RAG) and read-aloud logic, ported</string>
+    <string name="licenses_role_edge_tts">Edge read-aloud token generation, ported</string>
+    <string name="licenses_role_atkinson">Bundled reading font</string>
+    <string name="licenses_role_androidx">Core, Activity, AppCompat, Lifecycle, Navigation 3, Room, DataStore, WorkManager, WebKit, Startup, SQLite</string>
+    <string name="licenses_role_compose">User interface and Material 3</string>
+    <string name="licenses_role_media3">Read-aloud playback and media controls</string>
+    <string name="licenses_role_kotlin">Language, coroutines and serialization</string>
+    <string name="licenses_role_hilt">Dependency injection</string>
+    <string name="licenses_role_okhttp">Networking for sync, AI, translation and read-aloud</string>
+    <string name="licenses_role_coil">Cover images</string>
+    <string name="licenses_role_markdown">Formatting AI answers</string>
+    <string name="licenses_role_sqlite">Bundled database engine for the book index</string>
+</resources>
