@@ -38,4 +38,5 @@
     <string name="stats_book_summary">%1$s · %2$s</string>
     <string name="stats_book_finished">已读完</string>
     <string name="stats_book_listening">听书 %s</string>
+    <string name="stats_just_now">刚刚</string>
 </resources>

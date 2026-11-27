@@ -41,4 +41,5 @@
     <string name="stats_book_summary">%1$s · %2$s</string>
     <string name="stats_book_finished">Finished</string>
     <string name="stats_book_listening">%s listening</string>
+    <string name="stats_just_now">Just now</string>
 </resources>

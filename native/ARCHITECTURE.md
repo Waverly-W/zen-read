@@ -92,6 +92,7 @@ foliate-js 后续若需修改，只改 `native/reader/engine/src/main/assets/rea
 - **屏蔽系统选区工具栏**：`ReaderWebView` 让 ActionMode 的菜单保持为空，系统的「复制 / 全选」浮条就不会盖住应用自己的选区菜单，选区手柄照常可用。
 - **重开时补报书签状态**：foliate-js 只在翻页时上报当前页有没有书签，而第一次翻页事件比标注加载得早。所以 `replaceAnnotations` 绘制完后会自行判断一次，并通过宿主专用的 `zenBookmarkState` 回调上报。在 `evaluateJavascript` 里 `import()` 必须用绝对 URL，因为脚本的基准地址是 `about:blank`。
 - **同步的 XML 解析**：Android 的 DOM 解析器一设置 `isXIncludeAware` 就抛 `UnsupportedOperationException`，也忽略禁用 DTD 的特性开关，而 JVM 单元测试测不出这一点。所以 `SafeXml` 在解析前直接拒绝带 `<!DOCTYPE` 的响应。
+- **沉浸模式下的返回手势**：系统栏行为用 `BEHAVIOR_DEFAULT`，手势导航下隐藏系统栏时仍能一次滑动返回。`SHOW_TRANSIENT_BARS_BY_SWIPE` 会让第一次边缘滑动只用来唤出系统栏，退出阅读页要滑两次。`BEHAVIOR_DEFAULT` 下从顶部或底部唤出的系统栏不会自动收起，所以 `ImmersiveSystemBars` 每 0.5 秒查一次，显示超过 2.5 秒就重新隐藏。这里不用 Compose 的 `areSystemBarsVisible`，因为它察觉不到这种唤出。
 - 标注表由 Room 从 v1 自动迁移到 v2，外键随书籍级联删除；绘制格式沿用上游的 `{id, value, type, color, note, hasReaderNote}`。
 
 ## 5. 数据与同步

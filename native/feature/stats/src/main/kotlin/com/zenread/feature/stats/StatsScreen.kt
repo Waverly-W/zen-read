@@ -297,7 +297,12 @@ private fun HeatmapCard(state: StatsUiState, locale: Locale) {
 @Composable
 private fun BookRow(book: BookReading, onClick: () -> Unit) {
     val now = System.currentTimeMillis()
-    val lastRead = DateUtils.getRelativeTimeSpanString(book.lastReadAt, now, DateUtils.MINUTE_IN_MILLIS).toString()
+    // DateUtils says "0 minutes ago" for the last minute.
+    val lastRead = if (now - book.lastReadAt < DateUtils.MINUTE_IN_MILLIS) {
+        stringResource(R.string.stats_just_now)
+    } else {
+        DateUtils.getRelativeTimeSpanString(book.lastReadAt, now, DateUtils.MINUTE_IN_MILLIS).toString()
+    }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.clickable(onClick = onClick).padding(12.dp),

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
 import androidx.core.view.WindowCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -68,6 +69,7 @@ import com.zenread.reader.engine.ReaderController
 import com.zenread.reader.engine.ReaderEvent
 import com.zenread.reader.engine.ReaderOrigin
 import com.zenread.reader.engine.ReaderStyle
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
 
@@ -445,13 +447,37 @@ private fun ImmersiveSystemBars(showBars: Boolean, darkPage: Boolean) {
     val appDark = isAppInDarkTheme()
     val controller = remember(window) { WindowCompat.getInsetsController(window, view) }
     LaunchedEffect(showBars, darkPage) {
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // BEHAVIOR_DEFAULT keeps the back gesture working while the bars are hidden. With
+        // SHOW_TRANSIENT_BARS_BY_SWIPE the first edge swipe only reveals the bars, so leaving
+        // the reader took two swipes.
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         controller.isAppearanceLightStatusBars = !darkPage
         controller.isAppearanceLightNavigationBars = !darkPage
         if (showBars) {
             controller.show(WindowInsetsCompat.Type.systemBars())
         } else {
             controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+    // A swipe from the top or bottom edge still reveals the bars, and under BEHAVIOR_DEFAULT
+    // they stay; hide them again shortly unless the reader menu wants them. Polled, because
+    // Compose's WindowInsets.areSystemBarsVisible does not see this reveal.
+    LaunchedEffect(showBars) {
+        if (showBars) return@LaunchedEffect
+        var shownSince = -1L
+        while (true) {
+            delay(BARS_POLL_MS)
+            val visible = ViewCompat.getRootWindowInsets(view)
+                ?.isVisible(WindowInsetsCompat.Type.statusBars()) == true
+            shownSince = when {
+                !visible -> -1L
+                shownSince < 0 -> 0L
+                else -> shownSince + BARS_POLL_MS
+            }
+            if (shownSince >= REVEALED_BARS_TIMEOUT_MS) {
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                shownSince = -1L
+            }
         }
     }
     DisposableEffect(controller) {
@@ -464,3 +490,5 @@ private fun ImmersiveSystemBars(showBars: Boolean, darkPage: Boolean) {
 }
 
 private const val FOOTER_HEIGHT_DP = 20
+private const val REVEALED_BARS_TIMEOUT_MS = 2_500L
+private const val BARS_POLL_MS = 500L
